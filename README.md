@@ -50,13 +50,13 @@ Open [localhost:6767](http://localhost:6767).
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `bun run dev` | Dev server (port 6767) |
-| `bun run build` | Production build |
-| `bun run start` | Production server |
-| `bun run db:push` | Push schema to DB |
-| `bun run db:studio` | Drizzle Studio GUI |
+| Command             | Description            |
+| ------------------- | ---------------------- |
+| `bun run dev`       | Dev server (port 6767) |
+| `bun run build`     | Production build       |
+| `bun run start`     | Production server      |
+| `bun run db:push`   | Push schema to DB      |
+| `bun run db:studio` | Drizzle Studio GUI     |
 
 ## Structure
 

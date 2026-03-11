@@ -276,7 +276,8 @@ export default async function Dashboard({
       <Card className="mt-6">
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            {period === "today" || period === "7d" ? "Daily" : "Weekly"} Breakdown ({periodLabels[period] || period})
+            {period === "today" || period === "7d" ? "Daily" : "Weekly"}{" "}
+            Breakdown ({periodLabels[period] || period})
           </CardTitle>
         </CardHeader>
         <CardContent>

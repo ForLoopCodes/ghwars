@@ -3,7 +3,7 @@
 
 import { db } from "@/db";
 import { users, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
-import { eq, and, notInArray, sql, ne } from "drizzle-orm";
+import { eq, and, notInArray, sql, ne, desc } from "drizzle-orm";
 import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchYearlyCommits, fetchCommitStatsGQL, fetchPRCounts, fetchStarHistoryGQL, fetchPRHistory } from "./github";
 
 type ProgressFn = (event: string, data: Record<string, unknown>) => void;
@@ -88,11 +88,30 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
   const today = new Date().toISOString().split("T")[0];
   const [starTotal] = await db.select({ total: sql<number>`coalesce(sum(${repositories.stars}), 0)` })
     .from(repositories).where(eq(repositories.userId, userId));
+  const currentStars = Number(starTotal.total);
+
+  const [lastSnap] = await db.select({
+    totalStars: dailyStats.totalStars,
+    totalPrsRaised: dailyStats.totalPrsRaised,
+    totalPrsMerged: dailyStats.totalPrsMerged,
+  }).from(dailyStats).where(eq(dailyStats.userId, userId))
+    .orderBy(desc(dailyStats.date)).limit(1);
+
+  const prevStars = Number(lastSnap?.totalStars ?? 0);
+  const prevPrsRaised = Number(lastSnap?.totalPrsRaised ?? 0);
+  const prevPrsMerged = Number(lastSnap?.totalPrsMerged ?? 0);
+
+  const starsDelta = prevStars > 0 ? Math.max(0, currentStars - prevStars) : 0;
+  const prsRaisedDelta = prevPrsRaised > 0 ? Math.max(0, prCounts.raised - prevPrsRaised) : 0;
+  const prsMergedDelta = prevPrsMerged > 0 ? Math.max(0, prCounts.merged - prevPrsMerged) : 0;
 
   await db.update(dailyStats).set({
-    totalStars: Number(starTotal.total),
+    totalStars: currentStars,
     totalPrsRaised: prCounts.raised,
     totalPrsMerged: prCounts.merged,
+    newStars: sql`${dailyStats.newStars} + ${starsDelta}`,
+    newPrsRaised: sql`${dailyStats.newPrsRaised} + ${prsRaisedDelta}`,
+    newPrsMerged: sql`${dailyStats.newPrsMerged} + ${prsMergedDelta}`,
   }).where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, today)));
 
   const totals = await db.select({

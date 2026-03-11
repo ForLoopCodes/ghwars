@@ -48,12 +48,24 @@ export default async function Leaderboard({
       userId: dailyStats.userId,
       username: users.username,
       avatarUrl: users.avatarUrl,
-      totalAdditions: sql<number>`coalesce(sum(${dailyStats.additions}), 0)`.as("total_additions"),
-      totalDeletions: sql<number>`coalesce(sum(${dailyStats.deletions}), 0)`.as("total_deletions"),
-      totalCommits: sql<number>`coalesce(sum(${dailyStats.commits}), 0)`.as("total_commits"),
-      totalStars: sql<number>`coalesce(sum(${dailyStats.newStars}), 0)`.as("total_stars"),
-      prsRaised: sql<number>`coalesce(sum(${dailyStats.newPrsRaised}), 0)`.as("prs_raised"),
-      prsMerged: sql<number>`coalesce(sum(${dailyStats.newPrsMerged}), 0)`.as("prs_merged"),
+      totalAdditions: sql<number>`coalesce(sum(${dailyStats.additions}), 0)`.as(
+        "total_additions",
+      ),
+      totalDeletions: sql<number>`coalesce(sum(${dailyStats.deletions}), 0)`.as(
+        "total_deletions",
+      ),
+      totalCommits: sql<number>`coalesce(sum(${dailyStats.commits}), 0)`.as(
+        "total_commits",
+      ),
+      totalStars: sql<number>`coalesce(sum(${dailyStats.newStars}), 0)`.as(
+        "total_stars",
+      ),
+      prsRaised: sql<number>`coalesce(sum(${dailyStats.newPrsRaised}), 0)`.as(
+        "prs_raised",
+      ),
+      prsMerged: sql<number>`coalesce(sum(${dailyStats.newPrsMerged}), 0)`.as(
+        "prs_merged",
+      ),
     })
     .from(dailyStats)
     .innerJoin(users, eq(dailyStats.userId, users.id))
