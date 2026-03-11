@@ -2,13 +2,8 @@
 // Base wrapper for all pages
 
 import type { Metadata } from "next";
-import { Geist_Mono } from "next/font/google";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "GHWars - GitHub Coding Competition",
@@ -23,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${geistMono.variable} antialiased`}>{children}</body>
+      <body className={`${GeistMono.variable} antialiased`}>{children}</body>
     </html>
   );
 }
