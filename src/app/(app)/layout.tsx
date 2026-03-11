@@ -21,15 +21,20 @@ export default async function DashboardLayout({
   }
   if (!session?.user) redirect("/");
 
-  const [user] = await db.select({ isBanned: users.isBanned, banReason: users.banReason })
-    .from(users).where(eq(users.id, session.user.id!)).limit(1);
+  const [user] = await db
+    .select({ isBanned: users.isBanned, banReason: users.banReason })
+    .from(users)
+    .where(eq(users.id, session.user.id!))
+    .limit(1);
 
   if (user?.isBanned) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold">Account Suspended</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{user.banReason || "Your account has been suspended"}</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {user.banReason || "Your account has been suspended"}
+          </p>
         </div>
       </div>
     );

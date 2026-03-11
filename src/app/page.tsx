@@ -9,9 +9,7 @@ export default async function Landing() {
   try {
     const session = await auth();
     if (session?.user) redirect("/dashboard");
-  } catch {
-
-  }
+  } catch {}
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-6">

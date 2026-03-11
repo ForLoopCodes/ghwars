@@ -10,7 +10,7 @@ type ProgressFn = (event: string, data: Record<string, unknown>) => void;
 type SyncMode = "incremental" | "full";
 
 export async function syncUserData(userId: string, mode: SyncMode = "incremental", onProgress?: ProgressFn) {
-  const emit = onProgress ?? (() => {});
+  const emit = onProgress ?? (() => { });
 
   const [account] = await db.select().from(accounts)
     .where(and(eq(accounts.userId, userId), eq(accounts.provider, "github"))).limit(1);
@@ -80,6 +80,16 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
     prsRaised: prCounts.raised,
     prsMerged: prCounts.merged,
   }).where(eq(users.id, userId));
+
+  const today = new Date().toISOString().split("T")[0];
+  const [starTotal] = await db.select({ total: sql<number>`coalesce(sum(${repositories.stars}), 0)` })
+    .from(repositories).where(eq(repositories.userId, userId));
+
+  await db.update(dailyStats).set({
+    totalStars: Number(starTotal.total),
+    totalPrsRaised: prCounts.raised,
+    totalPrsMerged: prCounts.merged,
+  }).where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, today)));
 
   const totals = await db.select({
     additions: sql<number>`coalesce(sum(${dailyStats.additions}), 0)`,

@@ -76,7 +76,10 @@ export default async function Profile({
           label="Deletions (30d)"
           value={totals.deletions.toLocaleString("en-US")}
         />
-        <Stat label="Commits (30d)" value={totals.commits.toLocaleString("en-US")} />
+        <Stat
+          label="Commits (30d)"
+          value={totals.commits.toLocaleString("en-US")}
+        />
         <Stat
           label="Tracked Repos"
           value={String(repos.filter((r) => r.isTracked).length)}

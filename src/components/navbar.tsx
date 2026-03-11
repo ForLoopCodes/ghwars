@@ -19,7 +19,11 @@ export default async function Navbar() {
     username?: string;
   };
 
-  const [dbUser] = await db.select({ isAdmin: users.isAdmin }).from(users).where(eq(users.id, user.id)).limit(1);
+  const [dbUser] = await db
+    .select({ isAdmin: users.isAdmin })
+    .from(users)
+    .where(eq(users.id, user.id))
+    .limit(1);
 
   return (
     <nav className="flex items-center justify-between border-b border-border px-6 py-3">

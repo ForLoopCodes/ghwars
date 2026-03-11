@@ -29,7 +29,9 @@ export default function UserMenu({
       <DropdownMenuTrigger className="outline-none">
         <Avatar className="h-7 w-7 cursor-pointer">
           <AvatarImage src={image} />
-          <AvatarFallback className="text-xs">{name?.[0] ?? "?"}</AvatarFallback>
+          <AvatarFallback className="text-xs">
+            {name?.[0] ?? "?"}
+          </AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
@@ -41,14 +43,20 @@ export default function UserMenu({
         <DropdownMenuItem onClick={() => router.push(`/profile/${username}`)}>
           Profile
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => router.push("/dashboard?sync=incremental")}>
+        <DropdownMenuItem
+          onClick={() => router.push("/dashboard?sync=incremental")}
+        >
           Refresh Data
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => router.push("/dashboard?sync=full")}>
           Full Refresh (Lifetime)
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => { window.location.href = "/api/auth/signout"; }}>
+        <DropdownMenuItem
+          onClick={() => {
+            window.location.href = "/api/auth/signout";
+          }}
+        >
           Sign Out
         </DropdownMenuItem>
       </DropdownMenuContent>

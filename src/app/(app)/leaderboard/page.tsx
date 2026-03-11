@@ -49,27 +49,46 @@ export default async function Leaderboard({
         avatarUrl: users.avatarUrl,
         prsRaised: users.prsRaised,
         prsMerged: users.prsMerged,
-        totalAdditions: sql<number>`sum(${dailyStats.additions})`.as("total_additions"),
-        totalDeletions: sql<number>`sum(${dailyStats.deletions})`.as("total_deletions"),
-        totalCommits: sql<number>`sum(${dailyStats.commits})`.as("total_commits"),
+        totalAdditions: sql<number>`sum(${dailyStats.additions})`.as(
+          "total_additions",
+        ),
+        totalDeletions: sql<number>`sum(${dailyStats.deletions})`.as(
+          "total_deletions",
+        ),
+        totalCommits: sql<number>`sum(${dailyStats.commits})`.as(
+          "total_commits",
+        ),
       })
       .from(dailyStats)
       .innerJoin(users, eq(dailyStats.userId, users.id))
       .where(gte(dailyStats.date, threshold.toISOString().split("T")[0]))
-      .groupBy(dailyStats.userId, users.username, users.avatarUrl, users.prsRaised, users.prsMerged)
+      .groupBy(
+        dailyStats.userId,
+        users.username,
+        users.avatarUrl,
+        users.prsRaised,
+        users.prsMerged,
+      )
       .orderBy(desc(sql`sum(${dailyStats.additions})`))
       .limit(100),
     db
       .select({
         userId: repositories.userId,
-        totalStars: sql<number>`coalesce(sum(${repositories.stars}), 0)`.as("total_stars"),
+        totalStars: sql<number>`coalesce(sum(${repositories.stars}), 0)`.as(
+          "total_stars",
+        ),
       })
       .from(repositories)
       .groupBy(repositories.userId),
   ]);
 
-  const starsMap = new Map(starsByUser.map((s) => [s.userId, Number(s.totalStars)]));
-  const rankedWithStars = rankings.map((r) => ({ ...r, totalStars: starsMap.get(r.userId) ?? 0 }));
+  const starsMap = new Map(
+    starsByUser.map((s) => [s.userId, Number(s.totalStars)]),
+  );
+  const rankedWithStars = rankings.map((r) => ({
+    ...r,
+    totalStars: starsMap.get(r.userId) ?? 0,
+  }));
 
   return (
     <div>
@@ -94,7 +113,10 @@ export default async function Leaderboard({
         <TableBody>
           {rankedWithStars.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
+              <TableCell
+                colSpan={8}
+                className="py-8 text-center text-sm text-muted-foreground"
+              >
                 No data for this period
               </TableCell>
             </TableRow>
@@ -103,7 +125,9 @@ export default async function Leaderboard({
             <TableRow key={r.userId}>
               <TableCell className="text-sm font-medium">
                 {i < 3 ? (
-                  <Badge variant="secondary" className="text-xs">{i + 1}</Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    {i + 1}
+                  </Badge>
                 ) : (
                   i + 1
                 )}
@@ -115,7 +139,9 @@ export default async function Leaderboard({
                 >
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={r.avatarUrl ?? undefined} />
-                    <AvatarFallback className="text-xs">{r.username[0]}</AvatarFallback>
+                    <AvatarFallback className="text-xs">
+                      {r.username[0]}
+                    </AvatarFallback>
                   </Avatar>
                   <span className="text-sm">{r.username}</span>
                 </Link>

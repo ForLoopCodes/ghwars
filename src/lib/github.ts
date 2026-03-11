@@ -77,7 +77,7 @@ export async function fetchTodaysCommits(
         }
       }
     }
-  } catch {}
+  } catch { }
 
   return repoCommits;
 }
