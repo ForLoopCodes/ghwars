@@ -9,7 +9,7 @@ const Dither = dynamic(() => import("@/components/dither"), { ssr: false });
 
 export default function DitherBackground() {
   return (
-    <div className="absolute inset-0 -z-10">
+    <div className="absolute inset-0">
       <Dither
         waveSpeed={0.05}
         waveFrequency={3}
