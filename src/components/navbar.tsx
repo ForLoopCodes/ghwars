@@ -27,12 +27,15 @@ export default async function Navbar() {
     .limit(1);
 
   return (
-    <nav className="flex items-center justify-between border-b border-border px-6 py-3">
-      <div className="flex items-center gap-6">
-        <Link href="/dashboard" className={`${logoFont.className} text-xl tracking-tight`}>
+    <nav className="flex items-center justify-between border-b border-border px-4 py-3 md:px-6">
+      <div className="flex items-center gap-4 md:gap-6">
+        <Link
+          href="/dashboard"
+          className={`${logoFont.className} text-xl tracking-tight`}
+        >
           GHWars
         </Link>
-        <div className="flex gap-4 text-sm text-muted-foreground">
+        <div className="flex gap-2 text-sm text-muted-foreground md:gap-4">
           <Link href="/dashboard" className="hover:text-foreground">
             Dashboard
           </Link>

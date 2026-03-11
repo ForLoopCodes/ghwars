@@ -81,7 +81,8 @@ export default async function Leaderboard({
         <PeriodFilter current={period} />
       </div>
 
-      <Table className="mt-6">
+      <div className="mt-6 overflow-x-auto">
+      <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="w-12 text-xs">#</TableHead>
@@ -152,6 +153,7 @@ export default async function Leaderboard({
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

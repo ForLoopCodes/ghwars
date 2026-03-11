@@ -87,7 +87,7 @@ export default async function AdminOverview() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <Stat
           label="Total Users"
           value={Number(counts.totalUsers).toLocaleString("en-US")}
@@ -100,7 +100,7 @@ export default async function AdminOverview() {
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">Today</CardTitle>
@@ -163,7 +163,7 @@ export default async function AdminOverview() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">

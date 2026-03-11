@@ -213,7 +213,7 @@ export default async function Dashboard({
         <DashboardFilter current={period} />
       </div>
 
-      <div className="mt-4 grid grid-cols-4 gap-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <StatCard
           title="Additions"
           value={Number(periodStats[0].additions).toLocaleString("en-US")}
@@ -280,7 +280,7 @@ export default async function Dashboard({
             Breakdown ({periodLabels[period] || period})
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>

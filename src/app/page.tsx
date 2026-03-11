@@ -15,8 +15,8 @@ export default async function Landing() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-6">
-      <div className="grid w-full max-w-5xl grid-cols-2 gap-0 overflow-hidden rounded-2xl border border-border">
-        <div className="flex flex-col justify-center p-12">
+      <div className="grid w-full max-w-5xl grid-cols-1 gap-0 overflow-hidden rounded-2xl border border-border md:grid-cols-2">
+        <div className="flex flex-col justify-center p-8 md:p-12">
           <h1 className={`${logoFont.className} text-5xl tracking-tight`}>
             GHWars
           </h1>
@@ -35,7 +35,7 @@ export default async function Landing() {
             </Button>
           </form>
         </div>
-        <div className="relative min-h-125 overflow-hidden rounded-xl border-l border-border">
+        <div className="relative hidden min-h-125 overflow-hidden rounded-xl border-l border-border md:block">
           <DitherBackground />
         </div>
       </div>
