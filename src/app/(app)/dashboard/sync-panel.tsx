@@ -15,27 +15,35 @@ type SyncState = {
   logs: string[];
 };
 
+const MAX_LOGS = 50;
+
+function appendLog(logs: string[], entry: string) {
+  const next = [...logs, entry];
+  return next.length > MAX_LOGS ? next.slice(-MAX_LOGS) : next;
+}
+
 export default function SyncPanel({ mode }: { mode: "incremental" | "full" }) {
   const [state, setState] = useState<SyncState>({
     active: true, phase: "Starting sync...", repoTotal: 0, repoDone: 0, logs: [],
   });
   const logRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const started = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    runSync();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    runSync(ctrl.signal);
+    return () => ctrl.abort();
   }, []);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [state.logs]);
 
-  async function runSync() {
+  async function runSync(signal: AbortSignal) {
     try {
-      const response = await fetch(`/api/sync?mode=${mode}`);
+      const response = await fetch(`/api/sync?mode=${mode}`, { signal });
       if (response.status === 429) {
         const data = await response.json();
         setState((s) => ({ ...s, active: false, phase: data.error || "Rate limit reached" }));
@@ -50,7 +58,7 @@ export default function SyncPanel({ mode }: { mode: "incremental" | "full" }) {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      while (true) {
+      while (!signal.aborted) {
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -71,21 +79,21 @@ export default function SyncPanel({ mode }: { mode: "incremental" | "full" }) {
               case "status":
                 return { ...prev, phase: data.message };
               case "repos":
-                return { ...prev, phase: "Syncing data...", logs: [...prev.logs, `Repositories: ${data.count} synced`] };
+                return { ...prev, phase: "Syncing data...", logs: appendLog(prev.logs, `Repositories: ${data.count} synced`) };
               case "repo-done":
                 return {
                   ...prev,
                   repoDone: data.index ?? prev.repoDone + 1,
                   repoTotal: data.total ?? prev.repoTotal,
-                  logs: [...prev.logs, `${data.name}: +${data.additions} / -${data.deletions} (${data.commits} commits)`],
+                  logs: appendLog(prev.logs, `${data.name}: +${data.additions} / -${data.deletions} (${data.commits} commits)`),
                 };
               case "done":
                 return {
                   ...prev, active: false, phase: "Sync complete",
-                  logs: [...prev.logs, `Done: ${data.commits} commits, +${data.additions} / -${data.deletions}`],
+                  logs: appendLog(prev.logs, `Done: ${data.commits} commits, +${data.additions} / -${data.deletions}`),
                 };
               case "error":
-                return { ...prev, active: false, phase: "Sync failed", logs: [...prev.logs, `Error: ${data.message}`] };
+                return { ...prev, active: false, phase: "Sync failed", logs: appendLog(prev.logs, `Error: ${data.message}`) };
               default:
                 return prev;
             }
@@ -94,8 +102,10 @@ export default function SyncPanel({ mode }: { mode: "incremental" | "full" }) {
           if (event === "done") router.refresh();
         }
       }
-    } catch {
-      setState((s) => ({ ...s, active: false, phase: "Sync failed" }));
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === "AbortError")) {
+        setState((s) => ({ ...s, active: false, phase: "Sync failed" }));
+      }
     }
   }
 

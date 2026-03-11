@@ -3,7 +3,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 
 type Repo = {
@@ -29,7 +29,7 @@ export default function RepoList({ repos }: { repos: Repo[] }) {
   const [sortBy, setSortBy] = useState<SortKey>("commits");
   const [asc, setAsc] = useState(false);
 
-  const sorted = [...repos].sort((a, b) => {
+  const sorted = useMemo(() => [...repos].sort((a, b) => {
     let cmp = 0;
     if (sortBy === "name") cmp = a.repoName.localeCompare(b.repoName);
     else if (sortBy === "additions") cmp = a.totalAdditions - b.totalAdditions;
@@ -37,7 +37,7 @@ export default function RepoList({ repos }: { repos: Repo[] }) {
     else if (sortBy === "stars") cmp = a.stars - b.stars;
     else cmp = a.totalCommits - b.totalCommits;
     return asc ? cmp : -cmp;
-  });
+  }), [repos, sortBy, asc]);
 
   function toggleSort(key: SortKey) {
     if (sortBy === key) setAsc(!asc);

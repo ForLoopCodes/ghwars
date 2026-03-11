@@ -37,37 +37,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const syncMode = params.sync as "incremental" | "full" | undefined;
   const fromDate = periodToDate(period);
 
-  const [profile] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-
   const dateFilter = period === "today"
     ? and(eq(dailyStats.userId, userId), eq(dailyStats.date, fromDate!))
     : fromDate
       ? and(eq(dailyStats.userId, userId), gte(dailyStats.date, fromDate))
       : eq(dailyStats.userId, userId);
-
-  const periodStats = await db
-    .select({
-      additions: sql<number>`coalesce(sum(${dailyStats.additions}), 0)`,
-      deletions: sql<number>`coalesce(sum(${dailyStats.deletions}), 0)`,
-      commits: sql<number>`coalesce(sum(${dailyStats.commits}), 0)`,
-    })
-    .from(dailyStats)
-    .where(dateFilter);
-
-  const chartQuery = db
-    .select()
-    .from(dailyStats)
-    .where(fromDate ? and(eq(dailyStats.userId, userId), gte(dailyStats.date, fromDate)) : eq(dailyStats.userId, userId))
-    .orderBy(desc(dailyStats.date));
-
-  const chartStats = period === "lifetime"
-    ? await chartQuery
-    : await chartQuery.limit(period === "1y" ? 365 : period === "30d" ? 30 : period === "7d" ? 7 : 1);
-
-  const streak = calculateStreak(
-    (await db.select().from(dailyStats).where(eq(dailyStats.userId, userId)).orderBy(desc(dailyStats.date)).limit(365))
-      .map((s) => s.date)
-  );
 
   const repoDateFilter = period === "today"
     ? and(eq(repoStats.userId, userId), eq(repoStats.weekStart, fromDate!))
@@ -75,24 +49,41 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       ? and(eq(repoStats.userId, userId), gte(repoStats.weekStart, fromDate))
       : eq(repoStats.userId, userId);
 
-  const repoLogs = await db
-    .select({
+  const chartQuery = db
+    .select()
+    .from(dailyStats)
+    .where(fromDate ? and(eq(dailyStats.userId, userId), gte(dailyStats.date, fromDate)) : eq(dailyStats.userId, userId))
+    .orderBy(desc(dailyStats.date));
+
+  const [profileRows, periodStats, chartStats, streakDates, repoLogs, starCountRows] = await Promise.all([
+    db.select().from(users).where(eq(users.id, userId)).limit(1),
+    db.select({
+      additions: sql<number>`coalesce(sum(${dailyStats.additions}), 0)`,
+      deletions: sql<number>`coalesce(sum(${dailyStats.deletions}), 0)`,
+      commits: sql<number>`coalesce(sum(${dailyStats.commits}), 0)`,
+    }).from(dailyStats).where(dateFilter),
+    period === "lifetime"
+      ? chartQuery
+      : chartQuery.limit(period === "1y" ? 365 : period === "30d" ? 30 : period === "7d" ? 7 : 1),
+    db.select({ date: dailyStats.date }).from(dailyStats).where(eq(dailyStats.userId, userId)).orderBy(desc(dailyStats.date)).limit(365),
+    db.select({
       repoName: repositories.fullName,
       language: repositories.language,
       stars: repositories.stars,
       totalAdditions: sql<number>`sum(${repoStats.additions})`.as("total_additions"),
       totalDeletions: sql<number>`sum(${repoStats.deletions})`.as("total_deletions"),
       totalCommits: sql<number>`sum(${repoStats.commits})`.as("total_commits"),
-    })
-    .from(repoStats)
-    .innerJoin(repositories, eq(repoStats.repoId, repositories.id))
-    .where(repoDateFilter)
-    .groupBy(repositories.id, repositories.fullName, repositories.language, repositories.stars)
-    .orderBy(desc(sql`sum(${repoStats.commits})`));
+    }).from(repoStats)
+      .innerJoin(repositories, eq(repoStats.repoId, repositories.id))
+      .where(repoDateFilter)
+      .groupBy(repositories.id, repositories.fullName, repositories.language, repositories.stars)
+      .orderBy(desc(sql`sum(${repoStats.commits})`)),
+    db.select({ total: sql<number>`coalesce(sum(${repositories.stars}), 0)` }).from(repositories).where(eq(repositories.userId, userId)),
+  ]);
 
-  const [starCount] = await db.select({
-    total: sql<number>`coalesce(sum(${repositories.stars}), 0)`,
-  }).from(repositories).where(eq(repositories.userId, userId));
+  const [profile] = profileRows;
+  const streak = calculateStreak(streakDates.map((s) => s.date));
+  const [starCount] = starCountRows;
 
   return (
     <div>

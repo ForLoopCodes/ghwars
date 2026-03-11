@@ -153,6 +153,13 @@ async function syncIncremental(userId: string, username: string, octokit: Return
     emit("status", { message: "No commits found today" });
   }
 
+  const userRepos = await db.select().from(repositories).where(eq(repositories.userId, userId));
+  const repoMap = new Map(userRepos.map((r) => [r.fullName, r]));
+
+  const existingRepoStats = await db.select().from(repoStats)
+    .where(and(eq(repoStats.userId, userId), eq(repoStats.weekStart, today)));
+  const existingStatsMap = new Map(existingRepoStats.map((s) => [s.repoId, s]));
+
   let totalAdd = 0, totalDel = 0, totalCommits = 0;
   let idx = 0;
 
@@ -163,8 +170,7 @@ async function syncIncremental(userId: string, username: string, octokit: Return
       message: `Fetching ${repoFullName} (${idx}/${todaysCommits.size})`,
     });
 
-    const [repo] = await db.select().from(repositories)
-      .where(and(eq(repositories.fullName, repoFullName), eq(repositories.userId, userId))).limit(1);
+    const repo = repoMap.get(repoFullName);
     if (!repo) continue;
 
     let repoAdd = 0, repoDel = 0;
@@ -174,11 +180,9 @@ async function syncIncremental(userId: string, username: string, octokit: Return
     totalDel += repoDel;
     totalCommits += commits.length;
 
-    const existing = await db.select().from(repoStats)
-      .where(and(eq(repoStats.repoId, repo.id), eq(repoStats.weekStart, today))).limit(1);
     const repoRow = { additions: repoAdd, deletions: repoDel, commits: commits.length };
 
-    if (existing.length > 0) {
+    if (existingStatsMap.has(repo.id)) {
       await db.update(repoStats).set(repoRow).where(and(eq(repoStats.repoId, repo.id), eq(repoStats.weekStart, today)));
     } else {
       await db.insert(repoStats).values({ userId, repoId: repo.id, weekStart: today, ...repoRow });

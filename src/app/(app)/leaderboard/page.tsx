@@ -41,24 +41,35 @@ export default async function Leaderboard({
   ) as Period;
   const threshold = dateThreshold(period);
 
-  const rankings = await db
-    .select({
-      userId: dailyStats.userId,
-      username: users.username,
-      avatarUrl: users.avatarUrl,
-      prsRaised: users.prsRaised,
-      prsMerged: users.prsMerged,
-      totalAdditions: sql<number>`sum(${dailyStats.additions})`.as("total_additions"),
-      totalDeletions: sql<number>`sum(${dailyStats.deletions})`.as("total_deletions"),
-      totalCommits: sql<number>`sum(${dailyStats.commits})`.as("total_commits"),
-      totalStars: sql<number>`coalesce((select sum(${repositories.stars}) from ${repositories} where ${repositories.userId} = ${dailyStats.userId}), 0)`.as("total_stars"),
-    })
-    .from(dailyStats)
-    .innerJoin(users, eq(dailyStats.userId, users.id))
-    .where(gte(dailyStats.date, threshold.toISOString().split("T")[0]))
-    .groupBy(dailyStats.userId, users.username, users.avatarUrl, users.prsRaised, users.prsMerged)
-    .orderBy(desc(sql`sum(${dailyStats.additions})`))
-    .limit(100);
+  const [rankings, starsByUser] = await Promise.all([
+    db
+      .select({
+        userId: dailyStats.userId,
+        username: users.username,
+        avatarUrl: users.avatarUrl,
+        prsRaised: users.prsRaised,
+        prsMerged: users.prsMerged,
+        totalAdditions: sql<number>`sum(${dailyStats.additions})`.as("total_additions"),
+        totalDeletions: sql<number>`sum(${dailyStats.deletions})`.as("total_deletions"),
+        totalCommits: sql<number>`sum(${dailyStats.commits})`.as("total_commits"),
+      })
+      .from(dailyStats)
+      .innerJoin(users, eq(dailyStats.userId, users.id))
+      .where(gte(dailyStats.date, threshold.toISOString().split("T")[0]))
+      .groupBy(dailyStats.userId, users.username, users.avatarUrl, users.prsRaised, users.prsMerged)
+      .orderBy(desc(sql`sum(${dailyStats.additions})`))
+      .limit(100),
+    db
+      .select({
+        userId: repositories.userId,
+        totalStars: sql<number>`coalesce(sum(${repositories.stars}), 0)`.as("total_stars"),
+      })
+      .from(repositories)
+      .groupBy(repositories.userId),
+  ]);
+
+  const starsMap = new Map(starsByUser.map((s) => [s.userId, Number(s.totalStars)]));
+  const rankedWithStars = rankings.map((r) => ({ ...r, totalStars: starsMap.get(r.userId) ?? 0 }));
 
   return (
     <div>
@@ -81,14 +92,14 @@ export default async function Leaderboard({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rankings.length === 0 && (
+          {rankedWithStars.length === 0 && (
             <TableRow>
               <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
                 No data for this period
               </TableCell>
             </TableRow>
           )}
-          {rankings.map((r, i) => (
+          {rankedWithStars.map((r, i) => (
             <TableRow key={r.userId}>
               <TableCell className="text-sm font-medium">
                 {i < 3 ? (
@@ -119,7 +130,7 @@ export default async function Leaderboard({
                 {r.totalCommits.toLocaleString("en-US")}
               </TableCell>
               <TableCell className="text-right text-sm text-yellow-400">
-                {Number(r.totalStars).toLocaleString("en-US")}
+                {r.totalStars.toLocaleString("en-US")}
               </TableCell>
               <TableCell className="text-right text-sm text-muted-foreground">
                 {r.prsRaised.toLocaleString("en-US")}
