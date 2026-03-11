@@ -135,7 +135,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <CardContent>
           {repoLogs.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">
-              No repo data yet — click Refresh Data
+              No repo data yet - click Refresh Data
             </p>
           ) : (
             <div className="space-y-3">

@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GHWars — GitHub Coding Competition",
+  title: "GHWars - GitHub Coding Competition",
   description:
     "Compete with developers worldwide. Track your daily code output and climb the leaderboard.",
 };

@@ -62,7 +62,7 @@ export default function RefreshButton() {
               break;
             case "done":
               toast.success(
-                `Sync complete — ${data.commits} commits, +${data.additions} / -${data.deletions}`,
+                `Sync complete: ${data.commits} commits, +${data.additions} / -${data.deletions}`,
                 { id: syncToast, duration: 4000 },
               );
               router.refresh();

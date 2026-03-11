@@ -1,4 +1,4 @@
-# GHWars — GitHub Coding Competition Platform
+# GHWars - GitHub Coding Competition Platform
 
 ## Overview
 
@@ -24,7 +24,7 @@ A real-time competitive coding platform where developers log in via GitHub OAuth
 
 ### 3. Daily Code Stats Collection
 
-- **Method**: Use GitHub REST API — `GET /repos/{owner}/{repo}/stats/code_frequency`
+- **Method**: Use GitHub REST API - `GET /repos/{owner}/{repo}/stats/code_frequency`
   - Returns weekly additions/deletions per repo
   - For daily granularity: use commit-level stats via `GET /repos/{owner}/{repo}/commits` with `since`/`until` params, then sum `stats.additions` and `stats.deletions` per commit
 - **Cron Job**: Runs daily at midnight UTC

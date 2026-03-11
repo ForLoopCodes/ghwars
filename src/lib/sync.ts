@@ -3,7 +3,7 @@
 
 import { db } from "@/db";
 import { users, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, notInArray, sql } from "drizzle-orm";
 import { createOctokit, fetchUserRepos, fetchTodaysCommits } from "./github";
 
 type ProgressFn = (event: string, data: Record<string, unknown>) => void;
@@ -55,6 +55,41 @@ export async function syncUserData(userId: string, onProgress?: ProgressFn) {
   }
 
   emit("repos", { count: reposSynced, message: `Synced ${reposSynced} repositories` });
+
+  const ghRepoIds = ghRepos.map((r) => r.id);
+  if (ghRepoIds.length > 0) {
+    const stale = await db.select({ id: repositories.id, fullName: repositories.fullName })
+      .from(repositories)
+      .where(and(eq(repositories.userId, userId), notInArray(repositories.githubRepoId, ghRepoIds)));
+
+    if (stale.length > 0) {
+      for (const r of stale) {
+        await db.delete(repoStats).where(eq(repoStats.repoId, r.id));
+        await db.delete(repositories).where(eq(repositories.id, r.id));
+      }
+      emit("status", { message: `Removed ${stale.length} deleted repos` });
+
+      const recalc = await db.select({
+        date: repoStats.weekStart,
+        additions: sql<number>`coalesce(sum(${repoStats.additions}), 0)`,
+        deletions: sql<number>`coalesce(sum(${repoStats.deletions}), 0)`,
+        commits: sql<number>`coalesce(sum(${repoStats.commits}), 0)`,
+      }).from(repoStats).where(eq(repoStats.userId, userId)).groupBy(repoStats.weekStart);
+
+      await db.delete(dailyStats).where(eq(dailyStats.userId, userId));
+      for (const day of recalc) {
+        await db.insert(dailyStats).values({
+          userId,
+          date: day.date,
+          additions: Number(day.additions),
+          deletions: Number(day.deletions),
+          netLines: Number(day.additions) - Number(day.deletions),
+          commits: Number(day.commits),
+        });
+      }
+    }
+  }
+
   emit("status", { message: "Searching today's commits..." });
 
   const todaysCommits = await fetchTodaysCommits(octokit, user.username);

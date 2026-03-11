@@ -10,7 +10,7 @@ export default async function Landing() {
     const session = await auth();
     if (session?.user) redirect("/dashboard");
   } catch {
-    // stale JWT cookie — ignore, let user re-login
+
   }
 
   return (
