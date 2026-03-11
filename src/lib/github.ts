@@ -82,46 +82,66 @@ export async function fetchTodaysCommits(
   return repoCommits;
 }
 
-export async function fetchDailyCommitCounts(
+export async function fetchRecentDailyCommits(
   octokit: Octokit,
   username: string,
-): Promise<Map<string, Map<string, number>>> {
-  const result = new Map<string, Map<string, number>>();
-  const seen = new Set<string>();
+  days: number = 7,
+): Promise<Map<string, Map<string, { additions: number; deletions: number; commits: number }>>> {
   const now = new Date();
+  const startDate = new Date(now);
+  startDate.setDate(startDate.getDate() - days);
 
-  for (let i = 0; i < 12; i++) {
-    const rangeEnd = new Date(now);
-    rangeEnd.setMonth(rangeEnd.getMonth() - i);
-    const rangeStart = new Date(now);
-    rangeStart.setMonth(rangeStart.getMonth() - i - 1);
-    rangeStart.setDate(rangeStart.getDate() + 1);
+  const allCommits: Array<{ sha: string; date: string; repo: string }> = [];
+  const seen = new Set<string>();
+  let page = 1;
 
-    let page = 1;
-    while (true) {
-      try {
-        const { data } = await octokit.rest.search.commits({
-          q: `author:${username} author-date:${rangeStart.toISOString().split("T")[0]}..${rangeEnd.toISOString().split("T")[0]}`,
-          per_page: 100,
-          page,
-          sort: "author-date",
-          order: "desc",
+  while (true) {
+    try {
+      const { data } = await octokit.rest.search.commits({
+        q: `author:${username} author-date:${startDate.toISOString().split("T")[0]}..${now.toISOString().split("T")[0]}`,
+        per_page: 100,
+        page,
+      });
+      for (const item of data.items) {
+        if (seen.has(item.sha)) continue;
+        seen.add(item.sha);
+        allCommits.push({
+          sha: item.sha,
+          date: (item.commit.author?.date ?? "").split("T")[0],
+          repo: item.repository.full_name,
         });
-        for (const item of data.items) {
-          if (seen.has(item.sha)) continue;
-          seen.add(item.sha);
-          const date = (item.commit.author?.date ?? "").split("T")[0];
-          const repo = item.repository.full_name;
-          if (!result.has(date)) result.set(date, new Map());
-          const dateMap = result.get(date)!;
-          dateMap.set(repo, (dateMap.get(repo) ?? 0) + 1);
-        }
-        if (data.items.length < 100) break;
-        if (page >= 10) break;
-        page++;
-      } catch {
-        break;
       }
+      if (data.items.length < 100) break;
+      if (page >= 10) break;
+      page++;
+    } catch {
+      break;
+    }
+  }
+
+  const result = new Map<string, Map<string, { additions: number; deletions: number; commits: number }>>();
+  const batchSize = 20;
+
+  for (let i = 0; i < allCommits.length; i += batchSize) {
+    const batch = allCommits.slice(i, i + batchSize);
+    const results = await Promise.allSettled(
+      batch.map(async (c) => {
+        const [owner, repo] = c.repo.split("/");
+        const { data: detail } = await octokit.rest.repos.getCommit({ owner, repo, ref: c.sha });
+        return { ...c, additions: detail.stats?.additions ?? 0, deletions: detail.stats?.deletions ?? 0 };
+      }),
+    );
+
+    for (const r of results) {
+      if (r.status !== "fulfilled") continue;
+      const { date, repo, additions, deletions } = r.value;
+      if (!result.has(date)) result.set(date, new Map());
+      const dateMap = result.get(date)!;
+      const existing = dateMap.get(repo) ?? { additions: 0, deletions: 0, commits: 0 };
+      existing.additions += additions;
+      existing.deletions += deletions;
+      existing.commits += 1;
+      dateMap.set(repo, existing);
     }
   }
 
