@@ -41,54 +41,59 @@ export default async function Leaderboard({
   ) as Period;
   const threshold = dateThreshold(period);
 
-  const [rankings, starsByUser] = await Promise.all([
+  const dateStr = threshold.toISOString().split("T")[0];
+
+  const [rankings, starsByUser, latestSnapshots, earliestSnapshots] = await Promise.all([
     db
       .select({
         userId: dailyStats.userId,
         username: users.username,
         avatarUrl: users.avatarUrl,
-        prsRaised: users.prsRaised,
-        prsMerged: users.prsMerged,
-        totalAdditions: sql<number>`sum(${dailyStats.additions})`.as(
-          "total_additions",
-        ),
-        totalDeletions: sql<number>`sum(${dailyStats.deletions})`.as(
-          "total_deletions",
-        ),
-        totalCommits: sql<number>`sum(${dailyStats.commits})`.as(
-          "total_commits",
-        ),
+        totalAdditions: sql<number>`sum(${dailyStats.additions})`.as("total_additions"),
+        totalDeletions: sql<number>`sum(${dailyStats.deletions})`.as("total_deletions"),
+        totalCommits: sql<number>`sum(${dailyStats.commits})`.as("total_commits"),
       })
       .from(dailyStats)
       .innerJoin(users, eq(dailyStats.userId, users.id))
-      .where(gte(dailyStats.date, threshold.toISOString().split("T")[0]))
-      .groupBy(
-        dailyStats.userId,
-        users.username,
-        users.avatarUrl,
-        users.prsRaised,
-        users.prsMerged,
-      )
+      .where(gte(dailyStats.date, dateStr))
+      .groupBy(dailyStats.userId, users.username, users.avatarUrl)
       .orderBy(desc(sql`sum(${dailyStats.additions})`))
       .limit(100),
     db
       .select({
         userId: repositories.userId,
-        totalStars: sql<number>`coalesce(sum(${repositories.stars}), 0)`.as(
-          "total_stars",
-        ),
+        totalStars: sql<number>`coalesce(sum(${repositories.stars}), 0)`.as("total_stars"),
       })
       .from(repositories)
       .groupBy(repositories.userId),
+    db.execute(sql`
+      SELECT DISTINCT ON (user_id) user_id, total_stars, total_prs_raised, total_prs_merged
+      FROM daily_stats WHERE date >= ${dateStr}
+      ORDER BY user_id, date DESC
+    `),
+    db.execute(sql`
+      SELECT DISTINCT ON (user_id) user_id, total_stars, total_prs_raised, total_prs_merged
+      FROM daily_stats WHERE date >= ${dateStr}
+      ORDER BY user_id, date ASC
+    `),
   ]);
 
-  const starsMap = new Map(
-    starsByUser.map((s) => [s.userId, Number(s.totalStars)]),
-  );
-  const rankedWithStars = rankings.map((r) => ({
-    ...r,
-    totalStars: starsMap.get(r.userId) ?? 0,
-  }));
+  const starsMap = new Map(starsByUser.map((s) => [s.userId, Number(s.totalStars)]));
+  type Snapshot = { user_id: string; total_stars: number; total_prs_raised: number; total_prs_merged: number };
+  const latestMap = new Map((latestSnapshots as unknown as Snapshot[]).map((s) => [s.user_id, s]));
+  const earliestMap = new Map((earliestSnapshots as unknown as Snapshot[]).map((s) => [s.user_id, s]));
+
+  const rankedWithStars = rankings.map((r) => {
+    const latest = latestMap.get(r.userId);
+    const earliest = earliestMap.get(r.userId);
+    const hasSnapshots = latest && earliest && (latest.total_stars > 0 || latest.total_prs_raised > 0);
+    return {
+      ...r,
+      totalStars: hasSnapshots ? Number(latest.total_stars) - Number(earliest.total_stars) : starsMap.get(r.userId) ?? 0,
+      prsRaised: hasSnapshots ? Number(latest.total_prs_raised) - Number(earliest.total_prs_raised) : 0,
+      prsMerged: hasSnapshots ? Number(latest.total_prs_merged) - Number(earliest.total_prs_merged) : 0,
+    };
+  });
 
   return (
     <div>
