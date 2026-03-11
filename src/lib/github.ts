@@ -26,47 +26,52 @@ export async function fetchUserRepos(octokit: Octokit) {
   return repos;
 }
 
-export async function fetchCommitStatsGrouped(
+export async function fetchTodaysCommits(
   octokit: Octokit,
-  owner: string,
-  repo: string,
-  author: string,
-  since: string,
-): Promise<Map<string, { additions: number; deletions: number; commits: number }>> {
-  const grouped = new Map<string, { additions: number; deletions: number; commits: number }>();
+  username: string,
+): Promise<Map<string, Array<{ sha: string; additions: number; deletions: number }>>> {
+  const today = new Date().toISOString().split("T")[0];
+  const repoCommits = new Map<string, Array<{ sha: string; additions: number; deletions: number }>>();
 
   try {
     let page = 1;
-    const allCommits: Array<{ sha: string; date: string }> = [];
-
     while (true) {
-      const { data } = await octokit.rest.repos.listCommits({
-        owner, repo, author, since, per_page: 100, page,
+      const { data } = await octokit.rest.search.commits({
+        q: `author:${username}+author-date:${today}`,
+        per_page: 100,
+        page,
       });
-      if (data.length === 0) break;
-      for (const c of data) {
-        const date = c.commit.author?.date?.split("T")[0];
-        if (date) allCommits.push({ sha: c.sha, date });
+
+      for (const item of data.items) {
+        const repoName = item.repository.full_name;
+        const commits = repoCommits.get(repoName) ?? [];
+        commits.push({
+          sha: item.sha,
+          additions: 0,
+          deletions: 0,
+        });
+        repoCommits.set(repoName, commits);
       }
-      if (data.length < 100) break;
+
+      if (data.items.length < 100) break;
       page++;
     }
 
-    for (const { sha, date } of allCommits) {
-      try {
-        const { data: detail } = await octokit.rest.repos.getCommit({ owner, repo, ref: sha });
-        const entry = grouped.get(date) ?? { additions: 0, deletions: 0, commits: 0 };
-        entry.additions += detail.stats?.additions ?? 0;
-        entry.deletions += detail.stats?.deletions ?? 0;
-        entry.commits += 1;
-        grouped.set(date, entry);
-      } catch {
-        continue;
+    for (const [repoName, commits] of repoCommits) {
+      const [owner, repo] = repoName.split("/");
+      for (const commit of commits) {
+        try {
+          const { data: detail } = await octokit.rest.repos.getCommit({ owner, repo, ref: commit.sha });
+          commit.additions = detail.stats?.additions ?? 0;
+          commit.deletions = detail.stats?.deletions ?? 0;
+        } catch {
+          continue;
+        }
       }
     }
   } catch {
-    // repo access error — skip
+    // search API error
   }
 
-  return grouped;
+  return repoCommits;
 }

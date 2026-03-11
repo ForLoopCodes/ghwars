@@ -39,6 +39,7 @@ export default function StatsChart({ data }: { data: ChartEntry[] }) {
           tickLine={false}
         />
         <Tooltip
+          cursor={false}
           contentStyle={{
             background: "#0a0a0a",
             border: "1px solid #222",

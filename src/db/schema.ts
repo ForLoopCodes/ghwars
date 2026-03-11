@@ -1,5 +1,5 @@
 // Drizzle ORM schema for GHWars database
-// Tables: users, accounts, repositories, dailyStats
+// Tables: users, accounts, repositories, dailyStats, repoStats
 
 import { pgTable, uuid, bigint, varchar, text, boolean, timestamp, date, integer, primaryKey } from "drizzle-orm/pg-core";
 
@@ -45,5 +45,15 @@ export const dailyStats = pgTable("daily_stats", {
   additions: integer("additions").default(0).notNull(),
   deletions: integer("deletions").default(0).notNull(),
   netLines: integer("net_lines").default(0).notNull(),
+  commits: integer("commits").default(0).notNull(),
+});
+
+export const repoStats = pgTable("repo_stats", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  repoId: uuid("repo_id").references(() => repositories.id, { onDelete: "cascade" }).notNull(),
+  weekStart: date("week_start").notNull(),
+  additions: integer("additions").default(0).notNull(),
+  deletions: integer("deletions").default(0).notNull(),
   commits: integer("commits").default(0).notNull(),
 });

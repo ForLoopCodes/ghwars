@@ -1,10 +1,10 @@
-// Syncs repos and daily stats for a single user
-// Called on signup and from refresh button
+// Syncs repos and today's commit stats for user
+// Smart approach: search today's commits, then fetch affected repos
 
 import { db } from "@/db";
-import { users, accounts, repositories, dailyStats } from "@/db/schema";
+import { users, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { createOctokit, fetchUserRepos, fetchCommitStatsGrouped } from "./github";
+import { createOctokit, fetchUserRepos, fetchTodaysCommits } from "./github";
 
 export async function syncUserData(userId: string) {
   const [account] = await db
@@ -13,10 +13,10 @@ export async function syncUserData(userId: string) {
     .where(and(eq(accounts.userId, userId), eq(accounts.provider, "github")))
     .limit(1);
 
-  if (!account?.accessToken) return { repos: 0, days: 0 };
+  if (!account?.accessToken) return { repos: 0, commits: 0 };
 
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!user) return { repos: 0, days: 0 };
+  if (!user) return { repos: 0, commits: 0 };
 
   const octokit = createOctokit(account.accessToken);
 
@@ -48,49 +48,55 @@ export async function syncUserData(userId: string) {
     reposSynced++;
   }
 
-  const trackedRepos = await db
-    .select()
-    .from(repositories)
-    .where(and(eq(repositories.userId, userId), eq(repositories.isTracked, true)));
+  const todaysCommits = await fetchTodaysCommits(octokit, user.username);
+  const today = new Date().toISOString().split("T")[0];
 
-  const since = new Date();
-  since.setDate(since.getDate() - 30);
-  since.setHours(0, 0, 0, 0);
+  let totalAdditions = 0, totalDeletions = 0, totalCommits = 0;
 
-  const aggregated = new Map<string, { additions: number; deletions: number; commits: number }>();
+  for (const [repoFullName, commits] of todaysCommits) {
+    const [repo] = await db.select().from(repositories)
+      .where(and(eq(repositories.fullName, repoFullName), eq(repositories.userId, userId)))
+      .limit(1);
 
-  for (const repo of trackedRepos) {
-    const [owner, repoName] = repo.fullName.split("/");
-    const repoStats = await fetchCommitStatsGrouped(octokit, owner, repoName, user.username, since.toISOString());
+    if (!repo) continue;
 
-    for (const [date, stats] of repoStats) {
-      const entry = aggregated.get(date) ?? { additions: 0, deletions: 0, commits: 0 };
-      entry.additions += stats.additions;
-      entry.deletions += stats.deletions;
-      entry.commits += stats.commits;
-      aggregated.set(date, entry);
+    let repoAdd = 0, repoDel = 0;
+    for (const c of commits) {
+      repoAdd += c.additions;
+      repoDel += c.deletions;
+    }
+
+    totalAdditions += repoAdd;
+    totalDeletions += repoDel;
+    totalCommits += commits.length;
+
+    const existingRepo = await db.select().from(repoStats)
+      .where(and(eq(repoStats.repoId, repo.id), eq(repoStats.weekStart, today)))
+      .limit(1);
+
+    const repoRow = { additions: repoAdd, deletions: repoDel, commits: commits.length };
+
+    if (existingRepo.length > 0) {
+      await db.update(repoStats).set(repoRow)
+        .where(and(eq(repoStats.repoId, repo.id), eq(repoStats.weekStart, today)));
+    } else {
+      await db.insert(repoStats).values({ userId, repoId: repo.id, weekStart: today, ...repoRow });
     }
   }
 
-  let daysSynced = 0;
-  for (const [date, stats] of aggregated) {
-    const existing = await db
-      .select()
-      .from(dailyStats)
-      .where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, date)))
-      .limit(1);
+  const existingStats = await db.select().from(dailyStats)
+    .where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, today)))
+    .limit(1);
 
-    const row = { additions: stats.additions, deletions: stats.deletions, netLines: stats.additions - stats.deletions, commits: stats.commits };
+  const row = { additions: totalAdditions, deletions: totalDeletions, netLines: totalAdditions - totalDeletions, commits: totalCommits };
 
-    if (existing.length > 0) {
-      await db.update(dailyStats).set(row).where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, date)));
-    } else {
-      await db.insert(dailyStats).values({ userId, date, ...row });
-    }
-    daysSynced++;
+  if (existingStats.length > 0) {
+    await db.update(dailyStats).set(row).where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, today)));
+  } else {
+    await db.insert(dailyStats).values({ userId, date: today, ...row });
   }
 
   await db.update(users).set({ lastSyncedAt: new Date() }).where(eq(users.id, userId));
 
-  return { repos: reposSynced, days: daysSynced };
+  return { repos: reposSynced, commits: totalCommits };
 }
