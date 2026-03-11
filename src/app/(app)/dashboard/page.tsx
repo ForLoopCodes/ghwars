@@ -50,9 +50,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       : eq(repoStats.userId, userId);
 
   const chartQuery = db
-    .select()
+    .select({
+      date: dailyStats.date,
+      additions: sql<number>`coalesce(sum(${dailyStats.additions}), 0)`.as("additions"),
+      deletions: sql<number>`coalesce(sum(${dailyStats.deletions}), 0)`.as("deletions"),
+    })
     .from(dailyStats)
     .where(fromDate ? and(eq(dailyStats.userId, userId), gte(dailyStats.date, fromDate)) : eq(dailyStats.userId, userId))
+    .groupBy(dailyStats.date)
     .orderBy(desc(dailyStats.date));
 
   const [profileRows, periodStats, chartStats, streakDates, repoLogs, starCountRows] = await Promise.all([
@@ -65,7 +70,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     period === "lifetime"
       ? chartQuery
       : chartQuery.limit(period === "1y" ? 365 : period === "30d" ? 30 : period === "7d" ? 7 : 1),
-    db.select({ date: dailyStats.date }).from(dailyStats).where(eq(dailyStats.userId, userId)).orderBy(desc(dailyStats.date)).limit(365),
+    db.selectDistinct({ date: dailyStats.date }).from(dailyStats).where(eq(dailyStats.userId, userId)).orderBy(desc(dailyStats.date)).limit(365),
     db.select({
       repoName: repositories.fullName,
       language: repositories.language,
@@ -120,7 +125,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       <Card className="mt-6">
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Daily Activity ({periodLabels[period] || period})
+            Activity ({periodLabels[period] || period})
           </CardTitle>
         </CardHeader>
         <CardContent>
