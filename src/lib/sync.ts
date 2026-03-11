@@ -70,14 +70,30 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
     repoCount = ghRepos.length;
   }
 
+  emit("status", { message: "Fetching PR stats..." });
+  const today = new Date().toISOString().split("T")[0];
+  const [prCounts, starTotalRows, lastSnapRows] = await Promise.all([
+    fetchPRCounts(octokit, user.username),
+    db.select({ total: sql<number>`coalesce(sum(${repositories.stars}), 0)` })
+      .from(repositories).where(eq(repositories.userId, userId)),
+    db.select({
+      totalStars: dailyStats.totalStars,
+      totalPrsRaised: dailyStats.totalPrsRaised,
+      totalPrsMerged: dailyStats.totalPrsMerged,
+    }).from(dailyStats).where(eq(dailyStats.userId, userId))
+      .orderBy(desc(dailyStats.date)).limit(1),
+  ]);
+
+  const currentStars = Number(starTotalRows[0]?.total ?? 0);
+  const prevStars = Number(lastSnapRows[0]?.totalStars ?? 0);
+  const prevPrsRaised = Number(lastSnapRows[0]?.totalPrsRaised ?? 0);
+  const prevPrsMerged = Number(lastSnapRows[0]?.totalPrsMerged ?? 0);
+
   if (mode === "full") {
     await syncFull(userId, user.username, octokit, emit);
   } else {
     await syncIncremental(userId, user.username, octokit, emit);
   }
-
-  emit("status", { message: "Fetching PR stats..." });
-  const prCounts = await fetchPRCounts(octokit, user.username);
 
   await db.update(users).set({
     lastSyncedAt: new Date(),
@@ -85,34 +101,26 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
     prsMerged: prCounts.merged,
   }).where(eq(users.id, userId));
 
-  const today = new Date().toISOString().split("T")[0];
-  const [starTotal] = await db.select({ total: sql<number>`coalesce(sum(${repositories.stars}), 0)` })
-    .from(repositories).where(eq(repositories.userId, userId));
-  const currentStars = Number(starTotal.total);
+  if (mode === "incremental") {
+    const starsDelta = prevStars > 0 ? Math.max(0, currentStars - prevStars) : 0;
+    const prsRaisedDelta = prevPrsRaised > 0 ? Math.max(0, prCounts.raised - prevPrsRaised) : 0;
+    const prsMergedDelta = prevPrsMerged > 0 ? Math.max(0, prCounts.merged - prevPrsMerged) : 0;
 
-  const [lastSnap] = await db.select({
-    totalStars: dailyStats.totalStars,
-    totalPrsRaised: dailyStats.totalPrsRaised,
-    totalPrsMerged: dailyStats.totalPrsMerged,
-  }).from(dailyStats).where(eq(dailyStats.userId, userId))
-    .orderBy(desc(dailyStats.date)).limit(1);
-
-  const prevStars = Number(lastSnap?.totalStars ?? 0);
-  const prevPrsRaised = Number(lastSnap?.totalPrsRaised ?? 0);
-  const prevPrsMerged = Number(lastSnap?.totalPrsMerged ?? 0);
-
-  const starsDelta = prevStars > 0 ? Math.max(0, currentStars - prevStars) : 0;
-  const prsRaisedDelta = prevPrsRaised > 0 ? Math.max(0, prCounts.raised - prevPrsRaised) : 0;
-  const prsMergedDelta = prevPrsMerged > 0 ? Math.max(0, prCounts.merged - prevPrsMerged) : 0;
-
-  await db.update(dailyStats).set({
-    totalStars: currentStars,
-    totalPrsRaised: prCounts.raised,
-    totalPrsMerged: prCounts.merged,
-    newStars: sql`${dailyStats.newStars} + ${starsDelta}`,
-    newPrsRaised: sql`${dailyStats.newPrsRaised} + ${prsRaisedDelta}`,
-    newPrsMerged: sql`${dailyStats.newPrsMerged} + ${prsMergedDelta}`,
-  }).where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, today)));
+    await db.update(dailyStats).set({
+      totalStars: currentStars,
+      totalPrsRaised: prCounts.raised,
+      totalPrsMerged: prCounts.merged,
+      newStars: sql`${dailyStats.newStars} + ${starsDelta}`,
+      newPrsRaised: sql`${dailyStats.newPrsRaised} + ${prsRaisedDelta}`,
+      newPrsMerged: sql`${dailyStats.newPrsMerged} + ${prsMergedDelta}`,
+    }).where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, today)));
+  } else {
+    await db.update(dailyStats).set({
+      totalStars: currentStars,
+      totalPrsRaised: prCounts.raised,
+      totalPrsMerged: prCounts.merged,
+    }).where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, today)));
+  }
 
   const totals = await db.select({
     additions: sql<number>`coalesce(sum(${dailyStats.additions}), 0)`,

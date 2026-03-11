@@ -190,24 +190,24 @@ export default function StatsChart({
             <XAxis {...xAxisProps} />
             <YAxis {...yAxisProps} />
             <Tooltip {...tooltipProps} />
-            <Bar dataKey="additions" fill="#ffffff" radius={[2, 2, 0, 0]} />
-            <Bar dataKey="deletions" fill="#555555" radius={[2, 2, 0, 0]} />
+            <Bar dataKey="additions" fill="#ffffff" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="deletions" fill="#555555" radius={[4, 4, 0, 0]} />
             <Bar
               dataKey="newStars"
               fill="#aaaaaa"
-              radius={[2, 2, 0, 0]}
+              radius={[4, 4, 0, 0]}
               name="Stars"
             />
             <Bar
               dataKey="newPrsRaised"
               fill="#777777"
-              radius={[2, 2, 0, 0]}
+              radius={[4, 4, 0, 0]}
               name="PRs Raised"
             />
             <Bar
               dataKey="newPrsMerged"
               fill="#333333"
-              radius={[2, 2, 0, 0]}
+              radius={[4, 4, 0, 0]}
               name="PRs Merged"
             />
           </BarChart>
