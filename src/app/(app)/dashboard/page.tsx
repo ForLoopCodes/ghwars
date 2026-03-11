@@ -309,11 +309,11 @@ export default async function Dashboard({
             period={period}
             data={chartStats.reverse().map((s) => ({
               date: s.date,
-              additions: s.additions,
-              deletions: s.deletions,
-              newStars: s.newStars,
-              newPrsRaised: s.newPrsRaised,
-              newPrsMerged: s.newPrsMerged,
+              additions: Number(s.additions),
+              deletions: Number(s.deletions),
+              newStars: Number(s.newStars),
+              newPrsRaised: Number(s.newPrsRaised),
+              newPrsMerged: Number(s.newPrsMerged),
             }))}
           />
         </CardContent>

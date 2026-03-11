@@ -94,8 +94,8 @@ export default async function Profile({
           <StatsChart
             data={stats.reverse().map((s) => ({
               date: s.date,
-              additions: s.additions,
-              deletions: s.deletions,
+              additions: Number(s.additions),
+              deletions: Number(s.deletions),
               newStars: 0,
               newPrsRaised: 0,
               newPrsMerged: 0,
