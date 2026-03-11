@@ -3,7 +3,7 @@
 
 import { db } from "@/db";
 import { users, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
-import { eq, and, notInArray, sql } from "drizzle-orm";
+import { eq, and, notInArray, sql, ne } from "drizzle-orm";
 import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchRepoWeeklyStats } from "./github";
 
 type ProgressFn = (event: string, data: Record<string, unknown>) => void;
@@ -23,41 +23,41 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
   emit("status", { message: "Fetching repositories..." });
 
   const ghRepos = await fetchUserRepos(octokit);
-  let reposSynced = 0;
 
-  for (const repo of ghRepos) {
-    const existing = await db.select().from(repositories)
-      .where(eq(repositories.githubRepoId, repo.id)).limit(1);
+  const existingRepos = await db.select({ id: repositories.id, githubRepoId: repositories.githubRepoId })
+    .from(repositories).where(eq(repositories.userId, userId));
+  const existingMap = new Map(existingRepos.map((r) => [r.githubRepoId, r.id]));
 
-    if (existing.length === 0) {
-      await db.insert(repositories).values({
-        userId, githubRepoId: repo.id, name: repo.name, fullName: repo.full_name, language: repo.language,
-      });
-    } else {
-      await db.update(repositories).set({
-        name: repo.name, fullName: repo.full_name, language: repo.language,
-      }).where(eq(repositories.githubRepoId, repo.id));
-    }
-    reposSynced++;
+  const toInsert = ghRepos.filter((r) => !existingMap.has(r.id));
+  const toUpdate = ghRepos.filter((r) => existingMap.has(r.id));
+
+  if (toInsert.length > 0) {
+    await db.insert(repositories).values(
+      toInsert.map((r) => ({ userId, githubRepoId: r.id, name: r.name, fullName: r.full_name, language: r.language }))
+    );
   }
 
-  emit("repos", { count: reposSynced, message: `Synced ${reposSynced} repositories` });
+  for (const r of toUpdate) {
+    await db.update(repositories).set({ name: r.name, fullName: r.full_name, language: r.language })
+      .where(eq(repositories.githubRepoId, r.id));
+  }
+
+  emit("repos", { count: ghRepos.length, message: `Synced ${ghRepos.length} repositories` });
 
   const ghRepoIds = ghRepos.map((r) => r.id);
   if (ghRepoIds.length > 0) {
     const stale = await db.select({ id: repositories.id }).from(repositories)
       .where(and(eq(repositories.userId, userId), notInArray(repositories.githubRepoId, ghRepoIds)));
     if (stale.length > 0) {
-      for (const r of stale) {
-        await db.delete(repoStats).where(eq(repoStats.repoId, r.id));
-        await db.delete(repositories).where(eq(repositories.id, r.id));
-      }
+      const staleIds = stale.map((r) => r.id);
+      await db.delete(repoStats).where(sql`${repoStats.repoId} IN (${sql.join(staleIds.map(id => sql`${id}`), sql`, `)})`);
+      await db.delete(repositories).where(sql`${repositories.id} IN (${sql.join(staleIds.map(id => sql`${id}`), sql`, `)})`);
       emit("status", { message: `Removed ${stale.length} deleted repos` });
     }
   }
 
   if (mode === "full") {
-    await syncFull(userId, user.githubId, octokit, emit);
+    await syncFull(userId, user.githubId, user.username, octokit, emit);
   } else {
     await syncIncremental(userId, user.username, octokit, emit);
   }
@@ -71,22 +71,23 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
   }).from(dailyStats).where(eq(dailyStats.userId, userId));
 
   emit("done", {
-    repos: reposSynced,
+    repos: ghRepos.length,
     commits: Number(totals[0]?.commits ?? 0),
     additions: Number(totals[0]?.additions ?? 0),
     deletions: Number(totals[0]?.deletions ?? 0),
   });
 
-  return { repos: reposSynced, commits: Number(totals[0]?.commits ?? 0) };
+  return { repos: ghRepos.length, commits: Number(totals[0]?.commits ?? 0) };
 }
 
-async function syncFull(userId: string, githubId: number, octokit: ReturnType<typeof createOctokit>, emit: ProgressFn) {
-  emit("status", { message: "Fetching yearly stats (this may take a while)..." });
+async function syncFull(userId: string, githubId: number, username: string, octokit: ReturnType<typeof createOctokit>, emit: ProgressFn) {
+  emit("status", { message: "Fetching yearly stats..." });
 
+  const today = new Date().toISOString().split("T")[0];
   const dbRepos = await db.select().from(repositories).where(eq(repositories.userId, userId));
 
-  await db.delete(repoStats).where(eq(repoStats.userId, userId));
-  await db.delete(dailyStats).where(eq(dailyStats.userId, userId));
+  await db.delete(repoStats).where(and(eq(repoStats.userId, userId), ne(repoStats.weekStart, today)));
+  await db.delete(dailyStats).where(and(eq(dailyStats.userId, userId), ne(dailyStats.date, today)));
 
   const dailyAgg = new Map<string, { additions: number; deletions: number; commits: number }>();
 
@@ -101,6 +102,8 @@ async function syncFull(userId: string, githubId: number, octokit: ReturnType<ty
     const weeks = await fetchRepoWeeklyStats(octokit, owner, name, githubId);
 
     for (const w of weeks) {
+      if (w.weekStart === today) continue;
+
       await db.insert(repoStats).values({
         userId, repoId: repo.id, weekStart: w.weekStart,
         additions: w.additions, deletions: w.deletions, commits: w.commits,
@@ -125,6 +128,9 @@ async function syncFull(userId: string, githubId: number, octokit: ReturnType<ty
       netLines: agg.additions - agg.deletions, commits: agg.commits,
     });
   }
+
+  emit("status", { message: "Fetching today's commits..." });
+  await syncIncremental(userId, username, octokit, emit);
 }
 
 async function syncIncremental(userId: string, username: string, octokit: ReturnType<typeof createOctokit>, emit: ProgressFn) {
