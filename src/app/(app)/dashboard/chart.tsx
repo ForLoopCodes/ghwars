@@ -5,11 +5,24 @@
 
 import { useState, useMemo } from "react";
 import {
-  BarChart, Bar, LineChart, Line,
-  XAxis, YAxis, Tooltip, ResponsiveContainer,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
 } from "recharts";
 
-type ChartEntry = { date: string; additions: number; deletions: number; newStars: number; newPrsRaised: number; newPrsMerged: number };
+type ChartEntry = {
+  date: string;
+  additions: number;
+  deletions: number;
+  newStars: number;
+  newPrsRaised: number;
+  newPrsMerged: number;
+};
 type Grouping = "day" | "week" | "month" | "year";
 type ChartType = "bar" | "line";
 
@@ -21,14 +34,32 @@ function fillDays(data: ChartEntry[]): ChartEntry[] {
   const filled: ChartEntry[] = [];
   for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const key = d.toISOString().split("T")[0];
-    filled.push(map.get(key) ?? { date: key, additions: 0, deletions: 0, newStars: 0, newPrsRaised: 0, newPrsMerged: 0 });
+    filled.push(
+      map.get(key) ?? {
+        date: key,
+        additions: 0,
+        deletions: 0,
+        newStars: 0,
+        newPrsRaised: 0,
+        newPrsMerged: 0,
+      },
+    );
   }
   return filled;
 }
 
 function groupData(data: ChartEntry[], grouping: Grouping): ChartEntry[] {
   if (grouping === "day") return data;
-  const buckets = new Map<string, { additions: number; deletions: number; newStars: number; newPrsRaised: number; newPrsMerged: number }>();
+  const buckets = new Map<
+    string,
+    {
+      additions: number;
+      deletions: number;
+      newStars: number;
+      newPrsRaised: number;
+      newPrsMerged: number;
+    }
+  >();
   for (const d of data) {
     const dt = new Date(d.date);
     let key: string;
@@ -42,7 +73,13 @@ function groupData(data: ChartEntry[], grouping: Grouping): ChartEntry[] {
     } else {
       key = d.date.slice(0, 4);
     }
-    const existing = buckets.get(key) ?? { additions: 0, deletions: 0, newStars: 0, newPrsRaised: 0, newPrsMerged: 0 };
+    const existing = buckets.get(key) ?? {
+      additions: 0,
+      deletions: 0,
+      newStars: 0,
+      newPrsRaised: 0,
+      newPrsMerged: 0,
+    };
     existing.additions += d.additions;
     existing.deletions += d.deletions;
     existing.newStars += d.newStars;
@@ -59,15 +96,37 @@ function formatLabel(date: string, grouping: Grouping): string {
   return date.slice(5);
 }
 
-export default function StatsChart({ data, period }: { data: ChartEntry[]; period?: string }) {
-  const defaultGrouping: Grouping = period === "today" ? "day" : period === "7d" ? "week" : period === "30d" ? "week" : period === "1y" ? "month" : "month";
+export default function StatsChart({
+  data,
+  period,
+}: {
+  data: ChartEntry[];
+  period?: string;
+}) {
+  const defaultGrouping: Grouping =
+    period === "today"
+      ? "day"
+      : period === "7d"
+        ? "week"
+        : period === "30d"
+          ? "week"
+          : period === "1y"
+            ? "month"
+            : "month";
   const [grouping, setGrouping] = useState<Grouping>(defaultGrouping);
   const [chartType, setChartType] = useState<ChartType>("bar");
 
-  const processed = useMemo(() => groupData(fillDays(data), grouping), [data, grouping]);
+  const processed = useMemo(
+    () => groupData(fillDays(data), grouping),
+    [data, grouping],
+  );
 
   if (data.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">No activity data yet</p>;
+    return (
+      <p className="py-8 text-center text-sm text-muted-foreground">
+        No activity data yet
+      </p>
+    );
   }
 
   const sharedProps = {
@@ -91,7 +150,11 @@ export default function StatsChart({ data, period }: { data: ChartEntry[]; perio
 
   const tooltipProps = {
     cursor: false as const,
-    contentStyle: { background: "#0a0a0a", border: "1px solid #222", fontSize: 12 },
+    contentStyle: {
+      background: "#0a0a0a",
+      border: "1px solid #222",
+      fontSize: 12,
+    },
     labelStyle: { color: "#888" },
   };
 
@@ -100,16 +163,22 @@ export default function StatsChart({ data, period }: { data: ChartEntry[]; perio
       <div className="mb-3 flex gap-3">
         <div className="flex gap-1">
           {(["day", "week", "month", "year"] as Grouping[]).map((g) => (
-            <button key={g} onClick={() => setGrouping(g)}
-              className={`rounded px-2 py-0.5 text-xs ${grouping === g ? "bg-white text-black" : "text-muted-foreground hover:text-white"}`}>
+            <button
+              key={g}
+              onClick={() => setGrouping(g)}
+              className={`rounded px-2 py-0.5 text-xs ${grouping === g ? "bg-white text-black" : "text-muted-foreground hover:text-white"}`}
+            >
               {g[0].toUpperCase() + g.slice(1)}
             </button>
           ))}
         </div>
         <div className="flex gap-1">
           {(["bar", "line"] as ChartType[]).map((t) => (
-            <button key={t} onClick={() => setChartType(t)}
-              className={`rounded px-2 py-0.5 text-xs ${chartType === t ? "bg-white text-black" : "text-muted-foreground hover:text-white"}`}>
+            <button
+              key={t}
+              onClick={() => setChartType(t)}
+              className={`rounded px-2 py-0.5 text-xs ${chartType === t ? "bg-white text-black" : "text-muted-foreground hover:text-white"}`}
+            >
               {t[0].toUpperCase() + t.slice(1)}
             </button>
           ))}
@@ -123,20 +192,68 @@ export default function StatsChart({ data, period }: { data: ChartEntry[]; perio
             <Tooltip {...tooltipProps} />
             <Bar dataKey="additions" fill="#ffffff" radius={[2, 2, 0, 0]} />
             <Bar dataKey="deletions" fill="#555555" radius={[2, 2, 0, 0]} />
-            <Bar dataKey="newStars" fill="#aaaaaa" radius={[2, 2, 0, 0]} name="Stars" />
-            <Bar dataKey="newPrsRaised" fill="#777777" radius={[2, 2, 0, 0]} name="PRs Raised" />
-            <Bar dataKey="newPrsMerged" fill="#333333" radius={[2, 2, 0, 0]} name="PRs Merged" />
+            <Bar
+              dataKey="newStars"
+              fill="#aaaaaa"
+              radius={[2, 2, 0, 0]}
+              name="Stars"
+            />
+            <Bar
+              dataKey="newPrsRaised"
+              fill="#777777"
+              radius={[2, 2, 0, 0]}
+              name="PRs Raised"
+            />
+            <Bar
+              dataKey="newPrsMerged"
+              fill="#333333"
+              radius={[2, 2, 0, 0]}
+              name="PRs Merged"
+            />
           </BarChart>
         ) : (
           <LineChart {...sharedProps}>
             <XAxis {...xAxisProps} />
             <YAxis {...yAxisProps} />
             <Tooltip {...tooltipProps} />
-            <Line type="monotone" dataKey="additions" stroke="#ffffff" dot={false} strokeWidth={2} />
-            <Line type="monotone" dataKey="deletions" stroke="#555555" dot={false} strokeWidth={2} />
-            <Line type="monotone" dataKey="newStars" stroke="#aaaaaa" dot={false} strokeWidth={2} name="Stars" />
-            <Line type="monotone" dataKey="newPrsRaised" stroke="#777777" dot={false} strokeWidth={2} name="PRs Raised" />
-            <Line type="monotone" dataKey="newPrsMerged" stroke="#333333" dot={false} strokeWidth={2} name="PRs Merged" />
+            <Line
+              type="monotone"
+              dataKey="additions"
+              stroke="#ffffff"
+              dot={false}
+              strokeWidth={2}
+            />
+            <Line
+              type="monotone"
+              dataKey="deletions"
+              stroke="#555555"
+              dot={false}
+              strokeWidth={2}
+            />
+            <Line
+              type="monotone"
+              dataKey="newStars"
+              stroke="#aaaaaa"
+              dot={false}
+              strokeWidth={2}
+              name="Stars"
+            />
+            <Line
+              type="monotone"
+              dataKey="newPrsRaised"
+              stroke="#777777"
+              dot={false}
+              strokeWidth={2}
+              name="PRs Raised"
+            />
+            <Line
+              type="monotone"
+              dataKey="newPrsMerged"
+              stroke="#333333"
+              dot={false}
+              strokeWidth={2}
+              name="PRs Merged"
+            />
           </LineChart>
         )}
       </ResponsiveContainer>

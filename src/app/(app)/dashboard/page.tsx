@@ -87,12 +87,14 @@ export default async function Dashboard({
       newStars: sql<number>`coalesce(sum(${dailyStats.newStars}), 0)`.as(
         "new_stars",
       ),
-      newPrsRaised: sql<number>`coalesce(sum(${dailyStats.newPrsRaised}), 0)`.as(
-        "new_prs_raised",
-      ),
-      newPrsMerged: sql<number>`coalesce(sum(${dailyStats.newPrsMerged}), 0)`.as(
-        "new_prs_merged",
-      ),
+      newPrsRaised:
+        sql<number>`coalesce(sum(${dailyStats.newPrsRaised}), 0)`.as(
+          "new_prs_raised",
+        ),
+      newPrsMerged:
+        sql<number>`coalesce(sum(${dailyStats.newPrsMerged}), 0)`.as(
+          "new_prs_merged",
+        ),
     })
     .from(dailyStats)
     .where(
@@ -174,7 +176,11 @@ export default async function Dashboard({
         totalPrsMerged: dailyStats.totalPrsMerged,
       })
       .from(dailyStats)
-      .where(fromDate ? and(eq(dailyStats.userId, userId), gte(dailyStats.date, fromDate)) : eq(dailyStats.userId, userId))
+      .where(
+        fromDate
+          ? and(eq(dailyStats.userId, userId), gte(dailyStats.date, fromDate))
+          : eq(dailyStats.userId, userId),
+      )
       .orderBy(asc(dailyStats.date))
       .limit(1),
   ]);
@@ -185,10 +191,16 @@ export default async function Dashboard({
 
   const currentStars = Number(starCount.total);
   const snap = earliestSnapshot[0];
-  const hasSnapshots = snap && (snap.totalStars > 0 || snap.totalPrsRaised > 0 || snap.totalPrsMerged > 0);
+  const hasSnapshots =
+    snap &&
+    (snap.totalStars > 0 || snap.totalPrsRaised > 0 || snap.totalPrsMerged > 0);
   const starsDelta = hasSnapshots ? currentStars - snap.totalStars : 0;
-  const prsRaisedDelta = hasSnapshots ? profile.prsRaised - snap.totalPrsRaised : 0;
-  const prsMergedDelta = hasSnapshots ? profile.prsMerged - snap.totalPrsMerged : 0;
+  const prsRaisedDelta = hasSnapshots
+    ? profile.prsRaised - snap.totalPrsRaised
+    : 0;
+  const prsMergedDelta = hasSnapshots
+    ? profile.prsMerged - snap.totalPrsMerged
+    : 0;
 
   return (
     <div>
@@ -242,18 +254,42 @@ export default async function Dashboard({
         <StatCard title="Streak" value={`${streak}d`} sub="Consecutive days" />
         <StatCard
           title="Stars"
-          value={hasSnapshots ? `${starsDelta >= 0 ? "+" : ""}${starsDelta.toLocaleString("en-US")}` : currentStars.toLocaleString("en-US")}
-          sub={hasSnapshots ? `${currentStars.toLocaleString("en-US")} total` : periodLabels[period] || period}
+          value={
+            hasSnapshots
+              ? `${starsDelta >= 0 ? "+" : ""}${starsDelta.toLocaleString("en-US")}`
+              : currentStars.toLocaleString("en-US")
+          }
+          sub={
+            hasSnapshots
+              ? `${currentStars.toLocaleString("en-US")} total`
+              : periodLabels[period] || period
+          }
         />
         <StatCard
           title="PRs Raised"
-          value={hasSnapshots ? `${prsRaisedDelta >= 0 ? "+" : ""}${prsRaisedDelta.toLocaleString("en-US")}` : profile.prsRaised.toLocaleString("en-US")}
-          sub={hasSnapshots ? `${profile.prsRaised.toLocaleString("en-US")} total` : periodLabels[period] || period}
+          value={
+            hasSnapshots
+              ? `${prsRaisedDelta >= 0 ? "+" : ""}${prsRaisedDelta.toLocaleString("en-US")}`
+              : profile.prsRaised.toLocaleString("en-US")
+          }
+          sub={
+            hasSnapshots
+              ? `${profile.prsRaised.toLocaleString("en-US")} total`
+              : periodLabels[period] || period
+          }
         />
         <StatCard
           title="PRs Merged"
-          value={hasSnapshots ? `${prsMergedDelta >= 0 ? "+" : ""}${prsMergedDelta.toLocaleString("en-US")}` : profile.prsMerged.toLocaleString("en-US")}
-          sub={hasSnapshots ? `${profile.prsMerged.toLocaleString("en-US")} total` : periodLabels[period] || period}
+          value={
+            hasSnapshots
+              ? `${prsMergedDelta >= 0 ? "+" : ""}${prsMergedDelta.toLocaleString("en-US")}`
+              : profile.prsMerged.toLocaleString("en-US")
+          }
+          sub={
+            hasSnapshots
+              ? `${profile.prsMerged.toLocaleString("en-US")} total`
+              : periodLabels[period] || period
+          }
         />
         <StatCard
           title="Repos"
@@ -306,12 +342,24 @@ export default async function Dashboard({
               {chartStats.map((s) => (
                 <TableRow key={s.date}>
                   <TableCell>{s.date}</TableCell>
-                  <TableCell className="text-right">{Number(s.additions).toLocaleString("en-US")}</TableCell>
-                  <TableCell className="text-right">{Number(s.deletions).toLocaleString("en-US")}</TableCell>
-                  <TableCell className="text-right">{Number(s.commits).toLocaleString("en-US")}</TableCell>
-                  <TableCell className="text-right">{Number(s.newStars).toLocaleString("en-US")}</TableCell>
-                  <TableCell className="text-right">{Number(s.newPrsRaised).toLocaleString("en-US")}</TableCell>
-                  <TableCell className="text-right">{Number(s.newPrsMerged).toLocaleString("en-US")}</TableCell>
+                  <TableCell className="text-right">
+                    {Number(s.additions).toLocaleString("en-US")}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {Number(s.deletions).toLocaleString("en-US")}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {Number(s.commits).toLocaleString("en-US")}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {Number(s.newStars).toLocaleString("en-US")}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {Number(s.newPrsRaised).toLocaleString("en-US")}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {Number(s.newPrsMerged).toLocaleString("en-US")}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
