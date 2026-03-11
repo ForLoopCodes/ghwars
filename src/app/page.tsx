@@ -20,13 +20,7 @@ export default async function Landing() {
           <h1 className={`${logoFont.className} text-5xl tracking-tight`}>
             GHWars
           </h1>
-          <p className="mt-4 text-lg text-muted-foreground">
-            Compete with developers worldwide. Every line of code counts.
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Sign in with GitHub to track your daily additions, deletions, and
-            climb the top 100 leaderboard.
-          </p>
+          <p className="mt-4 text-lg text-muted-foreground">vibemaxxing</p>
           <form
             action={async () => {
               "use server";
@@ -41,22 +35,6 @@ export default async function Landing() {
               Sign in with GitHub
             </Button>
           </form>
-          <div className="mt-10 grid grid-cols-3 gap-6 text-center">
-            <div>
-              <p className="text-2xl font-bold">24h</p>
-              <p className="mt-1 text-xs text-muted-foreground">Daily cycle</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold">Top 100</p>
-              <p className="mt-1 text-xs text-muted-foreground">Leaderboard</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold">All Repos</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Public & private
-              </p>
-            </div>
-          </div>
         </div>
         <div className="relative min-h-125 overflow-hidden rounded-xl border-l border-border">
           <DitherBackground />
