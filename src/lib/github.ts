@@ -1,5 +1,5 @@
 // GitHub API helper for fetching commit stats
-// Uses Octokit with search and statistics APIs
+// Uses Octokit with search, statistics, and PR APIs
 
 import { Octokit } from "octokit";
 
@@ -8,7 +8,7 @@ export function createOctokit(accessToken: string) {
 }
 
 export async function fetchUserRepos(octokit: Octokit) {
-  const repos: Array<{ id: number; name: string; full_name: string; language: string | null }> = [];
+  const repos: Array<{ id: number; name: string; full_name: string; language: string | null; stargazers_count: number }> = [];
   let page = 1;
 
   while (true) {
@@ -18,12 +18,24 @@ export async function fetchUserRepos(octokit: Octokit) {
       sort: "pushed",
     });
     if (data.length === 0) break;
-    repos.push(...data.map((r) => ({ id: r.id, name: r.name, full_name: r.full_name, language: r.language })));
+    repos.push(...data.map((r) => ({ id: r.id, name: r.name, full_name: r.full_name, language: r.language, stargazers_count: r.stargazers_count })));
     if (data.length < 100) break;
     page++;
   }
 
   return repos;
+}
+
+export async function fetchPRCounts(octokit: Octokit, username: string): Promise<{ raised: number; merged: number }> {
+  try {
+    const [raised, merged] = await Promise.all([
+      octokit.rest.search.issuesAndPullRequests({ q: `type:pr author:${username}`, per_page: 1 }),
+      octokit.rest.search.issuesAndPullRequests({ q: `type:pr author:${username} is:merged`, per_page: 1 }),
+    ]);
+    return { raised: raised.data.total_count, merged: merged.data.total_count };
+  } catch {
+    return { raised: 0, merged: 0 };
+  }
 }
 
 export async function fetchTodaysCommits(

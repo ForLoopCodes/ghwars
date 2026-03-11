@@ -1,5 +1,5 @@
 // Drizzle ORM schema for GHWars database
-// Tables: users, accounts, repositories, dailyStats, repoStats
+// Tables: users, accounts, repositories, dailyStats, repoStats, adminLogs
 
 import { pgTable, uuid, bigint, varchar, text, boolean, timestamp, date, integer, primaryKey } from "drizzle-orm/pg-core";
 
@@ -12,6 +12,10 @@ export const users = pgTable("users", {
   bio: text("bio"),
   email: varchar("email", { length: 320 }),
   isAdmin: boolean("is_admin").default(false).notNull(),
+  isBanned: boolean("is_banned").default(false).notNull(),
+  banReason: text("ban_reason"),
+  prsRaised: integer("prs_raised").default(0).notNull(),
+  prsMerged: integer("prs_merged").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastSyncedAt: timestamp("last_synced_at"),
   syncCountDate: date("sync_count_date"),
@@ -38,6 +42,7 @@ export const repositories = pgTable("repositories", {
   name: varchar("name", { length: 255 }).notNull(),
   fullName: varchar("full_name", { length: 500 }).notNull(),
   language: varchar("language", { length: 100 }),
+  stars: integer("stars").default(0).notNull(),
   isTracked: boolean("is_tracked").default(true).notNull(),
   lastFetched: timestamp("last_fetched"),
 });
@@ -60,4 +65,13 @@ export const repoStats = pgTable("repo_stats", {
   additions: integer("additions").default(0).notNull(),
   deletions: integer("deletions").default(0).notNull(),
   commits: integer("commits").default(0).notNull(),
+});
+
+export const adminLogs = pgTable("admin_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  adminId: uuid("admin_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  targetId: uuid("target_id"),
+  details: text("details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });

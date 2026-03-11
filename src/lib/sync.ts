@@ -4,7 +4,7 @@
 import { db } from "@/db";
 import { users, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
 import { eq, and, notInArray, sql, ne } from "drizzle-orm";
-import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchRepoWeeklyStats } from "./github";
+import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchRepoWeeklyStats, fetchPRCounts } from "./github";
 
 type ProgressFn = (event: string, data: Record<string, unknown>) => void;
 type SyncMode = "incremental" | "full";
@@ -33,12 +33,12 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
 
   if (toInsert.length > 0) {
     await db.insert(repositories).values(
-      toInsert.map((r) => ({ userId, githubRepoId: r.id, name: r.name, fullName: r.full_name, language: r.language }))
+      toInsert.map((r) => ({ userId, githubRepoId: r.id, name: r.name, fullName: r.full_name, language: r.language, stars: r.stargazers_count }))
     );
   }
 
   for (const r of toUpdate) {
-    await db.update(repositories).set({ name: r.name, fullName: r.full_name, language: r.language })
+    await db.update(repositories).set({ name: r.name, fullName: r.full_name, language: r.language, stars: r.stargazers_count })
       .where(eq(repositories.githubRepoId, r.id));
   }
 
@@ -62,7 +62,14 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
     await syncIncremental(userId, user.username, octokit, emit);
   }
 
-  await db.update(users).set({ lastSyncedAt: new Date() }).where(eq(users.id, userId));
+  emit("status", { message: "Fetching PR stats..." });
+  const prCounts = await fetchPRCounts(octokit, user.username);
+
+  await db.update(users).set({
+    lastSyncedAt: new Date(),
+    prsRaised: prCounts.raised,
+    prsMerged: prCounts.merged,
+  }).where(eq(users.id, userId));
 
   const totals = await db.select({
     additions: sql<number>`coalesce(sum(${dailyStats.additions}), 0)`,

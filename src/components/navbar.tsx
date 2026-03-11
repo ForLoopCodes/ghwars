@@ -1,8 +1,11 @@
 // Shared navigation bar for authenticated pages
-// Shows logo, nav links, and user dropdown menu
+// Shows logo, nav links, admin link, user dropdown
 
 import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import UserMenu from "./user-menu";
 
 export default async function Navbar() {
@@ -10,10 +13,13 @@ export default async function Navbar() {
   if (!session?.user) return null;
 
   const user = session.user as {
+    id: string;
     name?: string | null;
     image?: string | null;
     username?: string;
   };
+
+  const [dbUser] = await db.select({ isAdmin: users.isAdmin }).from(users).where(eq(users.id, user.id)).limit(1);
 
   return (
     <nav className="flex items-center justify-between border-b border-border px-6 py-3">
@@ -28,6 +34,11 @@ export default async function Navbar() {
           <Link href="/leaderboard" className="hover:text-foreground">
             Leaderboard
           </Link>
+          {dbUser?.isAdmin && (
+            <Link href="/admin" className="hover:text-foreground">
+              Admin
+            </Link>
+          )}
         </div>
       </div>
       <UserMenu

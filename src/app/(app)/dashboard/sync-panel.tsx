@@ -91,7 +91,7 @@ export default function SyncPanel({ mode }: { mode: "incremental" | "full" }) {
             }
           });
 
-          if (event === "repo-done" || event === "done") router.refresh();
+          if (event === "done") router.refresh();
         }
       }
     } catch {

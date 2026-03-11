@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 type Repo = {
   repoName: string;
   language: string | null;
+  stars: number;
   totalAdditions: number;
   totalDeletions: number;
   totalCommits: number;
@@ -18,6 +19,7 @@ const sortOptions = [
   { key: "commits", label: "Commits" },
   { key: "additions", label: "Additions" },
   { key: "deletions", label: "Deletions" },
+  { key: "stars", label: "Stars" },
   { key: "name", label: "Name" },
 ] as const;
 
@@ -32,6 +34,7 @@ export default function RepoList({ repos }: { repos: Repo[] }) {
     if (sortBy === "name") cmp = a.repoName.localeCompare(b.repoName);
     else if (sortBy === "additions") cmp = a.totalAdditions - b.totalAdditions;
     else if (sortBy === "deletions") cmp = a.totalDeletions - b.totalDeletions;
+    else if (sortBy === "stars") cmp = a.stars - b.stars;
     else cmp = a.totalCommits - b.totalCommits;
     return asc ? cmp : -cmp;
   });
@@ -68,6 +71,10 @@ export default function RepoList({ repos }: { repos: Repo[] }) {
               {repo.language && <p className="text-xs text-muted-foreground">{repo.language}</p>}
             </div>
             <div className="flex gap-6 text-right">
+              <div>
+                <p className="text-sm font-bold">{repo.stars.toLocaleString("en-US")}</p>
+                <p className="text-xs text-muted-foreground">stars</p>
+              </div>
               <div>
                 <p className="text-sm font-bold text-green-400">+{repo.totalAdditions.toLocaleString("en-US")}</p>
                 <p className="text-xs text-muted-foreground">added</p>

@@ -54,12 +54,15 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     .from(dailyStats)
     .where(dateFilter);
 
-  const chartStats = await db
+  const chartQuery = db
     .select()
     .from(dailyStats)
     .where(fromDate ? and(eq(dailyStats.userId, userId), gte(dailyStats.date, fromDate)) : eq(dailyStats.userId, userId))
-    .orderBy(desc(dailyStats.date))
-    .limit(period === "1y" ? 365 : period === "30d" ? 30 : period === "7d" ? 7 : 1);
+    .orderBy(desc(dailyStats.date));
+
+  const chartStats = period === "lifetime"
+    ? await chartQuery
+    : await chartQuery.limit(period === "1y" ? 365 : period === "30d" ? 30 : period === "7d" ? 7 : 1);
 
   const streak = calculateStreak(
     (await db.select().from(dailyStats).where(eq(dailyStats.userId, userId)).orderBy(desc(dailyStats.date)).limit(365))
@@ -76,6 +79,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     .select({
       repoName: repositories.fullName,
       language: repositories.language,
+      stars: repositories.stars,
       totalAdditions: sql<number>`sum(${repoStats.additions})`.as("total_additions"),
       totalDeletions: sql<number>`sum(${repoStats.deletions})`.as("total_deletions"),
       totalCommits: sql<number>`sum(${repoStats.commits})`.as("total_commits"),
@@ -83,8 +87,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     .from(repoStats)
     .innerJoin(repositories, eq(repoStats.repoId, repositories.id))
     .where(repoDateFilter)
-    .groupBy(repositories.id, repositories.fullName, repositories.language)
+    .groupBy(repositories.id, repositories.fullName, repositories.language, repositories.stars)
     .orderBy(desc(sql`sum(${repoStats.commits})`));
+
+  const [starCount] = await db.select({
+    total: sql<number>`coalesce(sum(${repositories.stars}), 0)`,
+  }).from(repositories).where(eq(repositories.userId, userId));
 
   return (
     <div>
@@ -112,6 +120,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <StatCard title="Deletions" value={Number(periodStats[0].deletions).toLocaleString("en-US")} sub={periodLabels[period] || period} />
         <StatCard title="Commits" value={Number(periodStats[0].commits).toLocaleString("en-US")} sub={periodLabels[period] || period} />
         <StatCard title="Streak" value={`${streak}d`} sub="Consecutive days" />
+        <StatCard title="Stars" value={Number(starCount.total).toLocaleString("en-US")} sub="Across all repos" />
+        <StatCard title="PRs Raised" value={profile.prsRaised.toLocaleString("en-US")} sub="All time" />
+        <StatCard title="PRs Merged" value={profile.prsMerged.toLocaleString("en-US")} sub="All time" />
+        <StatCard title="Repos" value={String(repoLogs.length)} sub="With activity" />
       </div>
 
       <Card className="mt-6">
@@ -141,6 +153,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <RepoList repos={repoLogs.map((r) => ({
             repoName: r.repoName,
             language: r.language,
+            stars: r.stars,
             totalAdditions: Number(r.totalAdditions),
             totalDeletions: Number(r.totalDeletions),
             totalCommits: Number(r.totalCommits),
