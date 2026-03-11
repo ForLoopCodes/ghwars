@@ -179,8 +179,18 @@ export async function fetchStarHistoryGQL(
           starsByDate.set(date, (starsByDate.get(date) ?? 0) + 1);
         }
       }
-    } catch {
-      continue;
+    } catch (err) {
+      for (const r of batch) {
+        const [owner, name] = r.fullName.split("/");
+        try {
+          const data: { repository?: { stargazers?: { edges?: Array<{ starredAt: string }> } } } =
+            await octokit.graphql(`{ repository(owner: "${owner}", name: "${name}") { stargazers(first: 100, orderBy: {field: STARRED_AT, direction: DESC}) { edges { starredAt } } } }`);
+          for (const e of data.repository?.stargazers?.edges ?? []) {
+            const date = e.starredAt.split("T")[0];
+            starsByDate.set(date, (starsByDate.get(date) ?? 0) + 1);
+          }
+        } catch { continue; }
+      }
     }
   }
 

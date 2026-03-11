@@ -4,7 +4,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { dailyStats, repositories, repoStats, users } from "@/db/schema";
-import { eq, desc, sql, and, gte, asc } from "drizzle-orm";
+import { eq, desc, sql, and, gte } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatsChart from "./chart";
 import DashboardFilter from "./filter";
@@ -112,7 +112,6 @@ export default async function Dashboard({
     streakDates,
     repoLogs,
     starCountRows,
-    earliestSnapshot,
   ] = await Promise.all([
     db.select().from(users).where(eq(users.id, userId)).limit(1),
     db
@@ -120,6 +119,9 @@ export default async function Dashboard({
         additions: sql<number>`coalesce(sum(${dailyStats.additions}), 0)`,
         deletions: sql<number>`coalesce(sum(${dailyStats.deletions}), 0)`,
         commits: sql<number>`coalesce(sum(${dailyStats.commits}), 0)`,
+        newStars: sql<number>`coalesce(sum(${dailyStats.newStars}), 0)`,
+        newPrsRaised: sql<number>`coalesce(sum(${dailyStats.newPrsRaised}), 0)`,
+        newPrsMerged: sql<number>`coalesce(sum(${dailyStats.newPrsMerged}), 0)`,
       })
       .from(dailyStats)
       .where(dateFilter),
@@ -169,38 +171,14 @@ export default async function Dashboard({
       .select({ total: sql<number>`coalesce(sum(${repositories.stars}), 0)` })
       .from(repositories)
       .where(eq(repositories.userId, userId)),
-    db
-      .select({
-        totalStars: dailyStats.totalStars,
-        totalPrsRaised: dailyStats.totalPrsRaised,
-        totalPrsMerged: dailyStats.totalPrsMerged,
-      })
-      .from(dailyStats)
-      .where(
-        fromDate
-          ? and(eq(dailyStats.userId, userId), gte(dailyStats.date, fromDate))
-          : eq(dailyStats.userId, userId),
-      )
-      .orderBy(asc(dailyStats.date))
-      .limit(1),
   ]);
 
   const [profile] = profileRows;
   const streak = calculateStreak(streakDates.map((s) => s.date));
-  const [starCount] = starCountRows;
-
-  const currentStars = Number(starCount.total);
-  const snap = earliestSnapshot[0];
-  const hasSnapshots =
-    snap &&
-    (snap.totalStars > 0 || snap.totalPrsRaised > 0 || snap.totalPrsMerged > 0);
-  const starsDelta = hasSnapshots ? currentStars - snap.totalStars : 0;
-  const prsRaisedDelta = hasSnapshots
-    ? profile.prsRaised - snap.totalPrsRaised
-    : 0;
-  const prsMergedDelta = hasSnapshots
-    ? profile.prsMerged - snap.totalPrsMerged
-    : 0;
+  const currentStars = Number(starCountRows[0]?.total ?? 0);
+  const starsDelta = Number(periodStats[0]?.newStars ?? 0);
+  const prsRaisedDelta = Number(periodStats[0]?.newPrsRaised ?? 0);
+  const prsMergedDelta = Number(periodStats[0]?.newPrsMerged ?? 0);
 
   return (
     <div>
@@ -254,42 +232,18 @@ export default async function Dashboard({
         <StatCard title="Streak" value={`${streak}d`} sub="Consecutive days" />
         <StatCard
           title="Stars"
-          value={
-            hasSnapshots
-              ? `${starsDelta >= 0 ? "+" : ""}${starsDelta.toLocaleString("en-US")}`
-              : currentStars.toLocaleString("en-US")
-          }
-          sub={
-            hasSnapshots
-              ? `${currentStars.toLocaleString("en-US")} total`
-              : periodLabels[period] || period
-          }
+          value={`${starsDelta >= 0 ? "+" : ""}${starsDelta.toLocaleString("en-US")}`}
+          sub={`${currentStars.toLocaleString("en-US")} total`}
         />
         <StatCard
           title="PRs Raised"
-          value={
-            hasSnapshots
-              ? `${prsRaisedDelta >= 0 ? "+" : ""}${prsRaisedDelta.toLocaleString("en-US")}`
-              : profile.prsRaised.toLocaleString("en-US")
-          }
-          sub={
-            hasSnapshots
-              ? `${profile.prsRaised.toLocaleString("en-US")} total`
-              : periodLabels[period] || period
-          }
+          value={`${prsRaisedDelta >= 0 ? "+" : ""}${prsRaisedDelta.toLocaleString("en-US")}`}
+          sub={`${profile.prsRaised.toLocaleString("en-US")} total`}
         />
         <StatCard
           title="PRs Merged"
-          value={
-            hasSnapshots
-              ? `${prsMergedDelta >= 0 ? "+" : ""}${prsMergedDelta.toLocaleString("en-US")}`
-              : profile.prsMerged.toLocaleString("en-US")
-          }
-          sub={
-            hasSnapshots
-              ? `${profile.prsMerged.toLocaleString("en-US")} total`
-              : periodLabels[period] || period
-          }
+          value={`${prsMergedDelta >= 0 ? "+" : ""}${prsMergedDelta.toLocaleString("en-US")}`}
+          sub={`${profile.prsMerged.toLocaleString("en-US")} total`}
         />
         <StatCard
           title="Repos"

@@ -126,7 +126,7 @@ async function syncFull(userId: string, username: string, octokit: ReturnType<ty
     fetchPRHistory(octokit, username),
   ]);
 
-  emit("status", { message: `Found ${yearlyCommits.length} commits, fetching stats via GraphQL...` });
+  emit("status", { message: `Found ${yearlyCommits.length} commits, ${starHistory.size} star dates, fetching stats via GraphQL...` });
   const commitStats = await fetchCommitStatsGQL(octokit, yearlyCommits.map((c) => c.nodeId));
 
   const repoDateAgg = new Map<string, Map<string, { additions: number; deletions: number; commits: number }>>();
