@@ -96,6 +96,9 @@ export default async function Profile({
               date: s.date,
               additions: s.additions,
               deletions: s.deletions,
+              newStars: 0,
+              newPrsRaised: 0,
+              newPrsMerged: 0,
             }))}
           />
         </CardContent>

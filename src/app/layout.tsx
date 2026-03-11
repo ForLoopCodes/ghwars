@@ -18,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${GeistMono.variable} antialiased`}>{children}</body>
+      <body className={`${GeistMono.className} antialiased`}>{children}</body>
     </html>
   );
 }
