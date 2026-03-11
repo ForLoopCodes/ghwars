@@ -1,34 +1,72 @@
 // User dashboard showing personal coding stats
-// Displays today's activity, per-repo logs, charts
+// Displays profile, activity, per-repo logs, charts
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { dailyStats, repositories, repoStats } from "@/db/schema";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { dailyStats, repositories, repoStats, users } from "@/db/schema";
+import { eq, desc, sql, and, gte } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatsChart from "./chart";
 import RefreshButton from "./refresh";
+import DashboardFilter from "./filter";
+import Image from "next/image";
 
-export default async function Dashboard() {
+function periodToDate(period: string): string | null {
+  const d = new Date();
+  if (period === "today") return d.toISOString().split("T")[0];
+  if (period === "7d") { d.setDate(d.getDate() - 7); return d.toISOString().split("T")[0]; }
+  if (period === "30d") { d.setDate(d.getDate() - 30); return d.toISOString().split("T")[0]; }
+  if (period === "1y") { d.setFullYear(d.getFullYear() - 1); return d.toISOString().split("T")[0]; }
+  return null;
+}
+
+const periodLabels: Record<string, string> = {
+  today: "Today",
+  "7d": "Last 7 Days",
+  "30d": "Last 30 Days",
+  "1y": "Last Year",
+};
+
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const session = await auth();
-  const user = session!.user as { id: string; username?: string };
+  const userId = (session!.user as { id: string }).id;
+  const period = (await searchParams).period || "today";
+  const fromDate = periodToDate(period);
 
-  const today = new Date().toISOString().split("T")[0];
+  const [profile] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
-  const [todayStats] = await db
+  const dateFilter = period === "today"
+    ? and(eq(dailyStats.userId, userId), eq(dailyStats.date, fromDate!))
+    : fromDate
+      ? and(eq(dailyStats.userId, userId), gte(dailyStats.date, fromDate))
+      : eq(dailyStats.userId, userId);
+
+  const periodStats = await db
+    .select({
+      additions: sql<number>`coalesce(sum(${dailyStats.additions}), 0)`,
+      deletions: sql<number>`coalesce(sum(${dailyStats.deletions}), 0)`,
+      commits: sql<number>`coalesce(sum(${dailyStats.commits}), 0)`,
+    })
+    .from(dailyStats)
+    .where(dateFilter);
+
+  const chartStats = await db
     .select()
     .from(dailyStats)
-    .where(and(eq(dailyStats.userId, user.id), eq(dailyStats.date, today)))
-    .limit(1);
-
-  const stats = await db
-    .select()
-    .from(dailyStats)
-    .where(eq(dailyStats.userId, user.id))
+    .where(fromDate ? and(eq(dailyStats.userId, userId), gte(dailyStats.date, fromDate)) : eq(dailyStats.userId, userId))
     .orderBy(desc(dailyStats.date))
-    .limit(30);
+    .limit(period === "1y" ? 365 : period === "30d" ? 30 : period === "7d" ? 7 : 1);
 
-  const streak = calculateStreak(stats.map((s) => s.date));
+  const streak = calculateStreak(
+    (await db.select().from(dailyStats).where(eq(dailyStats.userId, userId)).orderBy(desc(dailyStats.date)).limit(365))
+      .map((s) => s.date)
+  );
+
+  const repoDateFilter = period === "today"
+    ? and(eq(repoStats.userId, userId), eq(repoStats.weekStart, fromDate!))
+    : fromDate
+      ? and(eq(repoStats.userId, userId), gte(repoStats.weekStart, fromDate))
+      : eq(repoStats.userId, userId);
 
   const repoLogs = await db
     .select({
@@ -40,48 +78,46 @@ export default async function Dashboard() {
     })
     .from(repoStats)
     .innerJoin(repositories, eq(repoStats.repoId, repositories.id))
-    .where(and(eq(repoStats.userId, user.id), eq(repoStats.weekStart, today)))
+    .where(repoDateFilter)
     .groupBy(repositories.id, repositories.fullName, repositories.language)
     .orderBy(desc(sql`sum(${repoStats.commits})`));
 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">@{user.username}</p>
+        <div className="flex items-center gap-4">
+          {profile.avatarUrl && (
+            <Image src={profile.avatarUrl} alt="" width={56} height={56} className="rounded-full border border-border" />
+          )}
+          <div>
+            <h1 className="text-xl font-bold">{profile.name || profile.username}</h1>
+            <p className="text-sm text-muted-foreground">@{profile.username}</p>
+            {profile.bio && <p className="mt-0.5 max-w-md text-xs text-muted-foreground">{profile.bio}</p>}
+          </div>
         </div>
         <RefreshButton />
       </div>
 
-      <div className="mt-6 grid grid-cols-4 gap-4">
-        <StatCard
-          title="Additions"
-          value={(todayStats?.additions ?? 0).toLocaleString()}
-          sub="Today"
-        />
-        <StatCard
-          title="Deletions"
-          value={(todayStats?.deletions ?? 0).toLocaleString()}
-          sub="Today"
-        />
-        <StatCard
-          title="Commits"
-          value={(todayStats?.commits ?? 0).toLocaleString()}
-          sub="Today"
-        />
+      <div className="mt-4 flex items-center justify-between">
+        <DashboardFilter current={period} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-4 gap-4">
+        <StatCard title="Additions" value={Number(periodStats[0].additions).toLocaleString()} sub={periodLabels[period] || period} />
+        <StatCard title="Deletions" value={Number(periodStats[0].deletions).toLocaleString()} sub={periodLabels[period] || period} />
+        <StatCard title="Commits" value={Number(periodStats[0].commits).toLocaleString()} sub={periodLabels[period] || period} />
         <StatCard title="Streak" value={`${streak}d`} sub="Consecutive days" />
       </div>
 
       <Card className="mt-6">
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Daily Activity (30 days)
+            Daily Activity ({periodLabels[period] || period})
           </CardTitle>
         </CardHeader>
         <CardContent>
           <StatsChart
-            data={stats.reverse().map((s) => ({
+            data={chartStats.reverse().map((s) => ({
               date: s.date,
               additions: s.additions,
               deletions: s.deletions,
@@ -93,7 +129,7 @@ export default async function Dashboard() {
       <Card className="mt-6">
         <CardHeader>
           <CardTitle className="text-sm font-medium">
-            Today&apos;s Repository Activity
+            Repository Activity ({periodLabels[period] || period})
           </CardTitle>
         </CardHeader>
         <CardContent>
