@@ -4,7 +4,7 @@
 import { db } from "@/db";
 import { users, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
 import { eq, and, notInArray, sql, ne } from "drizzle-orm";
-import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchDailyCommits, fetchPRCounts } from "./github";
+import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchDailyCommits, fetchPRCounts, fetchStarHistory, fetchPRHistory } from "./github";
 
 type ProgressFn = (event: string, data: Record<string, unknown>) => void;
 type SyncMode = "incremental" | "full";
@@ -117,36 +117,56 @@ async function syncFull(userId: string, username: string, octokit: ReturnType<ty
   await db.delete(repoStats).where(and(eq(repoStats.userId, userId), ne(repoStats.weekStart, today)));
   await db.delete(dailyStats).where(and(eq(dailyStats.userId, userId), ne(dailyStats.date, today)));
 
-  const dailyData = await fetchDailyCommits(octokit, username, (fetched, total) => {
-    emit("status", { message: `Fetching commit stats: ${fetched}/${total}` });
-  });
+  const [dailyData, starHistory, prHistory] = await Promise.all([
+    fetchDailyCommits(octokit, username, (fetched, total) => {
+      emit("status", { message: `Fetching commit stats: ${fetched}/${total}` });
+    }),
+    fetchStarHistory(octokit, dbRepos, (done, total) => {
+      emit("status", { message: `Fetching star history: ${done}/${total} repos` });
+    }),
+    fetchPRHistory(octokit, username),
+  ]);
+
+  const allDates = new Set<string>();
+  for (const date of dailyData.keys()) allDates.add(date);
+  for (const date of starHistory.keys()) allDates.add(date);
+  for (const date of prHistory.raised.keys()) allDates.add(date);
+  for (const date of prHistory.merged.keys()) allDates.add(date);
 
   let completed = 0;
-  const totalDates = dailyData.size;
+  const totalDates = allDates.size;
 
-  for (const [date, repoMap] of dailyData) {
+  for (const date of allDates) {
     if (date === today) { completed++; continue; }
 
     let dayAdd = 0, dayDel = 0, dayCommits = 0;
+    const repoMap = dailyData.get(date);
 
-    for (const [repoName, stats] of repoMap) {
-      const repoId = repoNameToId.get(repoName);
-      if (!repoId) continue;
+    if (repoMap) {
+      for (const [repoName, stats] of repoMap) {
+        const repoId = repoNameToId.get(repoName);
+        if (!repoId) continue;
 
-      await db.insert(repoStats).values({
-        userId, repoId, weekStart: date,
-        additions: stats.additions, deletions: stats.deletions, commits: stats.commits,
-      });
+        await db.insert(repoStats).values({
+          userId, repoId, weekStart: date,
+          additions: stats.additions, deletions: stats.deletions, commits: stats.commits,
+        });
 
-      dayAdd += stats.additions;
-      dayDel += stats.deletions;
-      dayCommits += stats.commits;
+        dayAdd += stats.additions;
+        dayDel += stats.deletions;
+        dayCommits += stats.commits;
+      }
     }
 
-    if (dayCommits > 0 || dayAdd > 0 || dayDel > 0) {
+    const newStars = starHistory.get(date) ?? 0;
+    const newPrsRaised = prHistory.raised.get(date) ?? 0;
+    const newPrsMerged = prHistory.merged.get(date) ?? 0;
+
+    if (dayCommits > 0 || dayAdd > 0 || dayDel > 0 || newStars > 0 || newPrsRaised > 0 || newPrsMerged > 0) {
       await db.insert(dailyStats).values({
         userId, date, additions: dayAdd, deletions: dayDel,
         netLines: dayAdd - dayDel, commits: dayCommits,
+        newStars, newPrsRaised, newPrsMerged,
       });
     }
 

@@ -9,7 +9,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 
-type ChartEntry = { date: string; additions: number; deletions: number };
+type ChartEntry = { date: string; additions: number; deletions: number; newStars: number; newPrsRaised: number; newPrsMerged: number };
 type Grouping = "day" | "week" | "month" | "year";
 type ChartType = "bar" | "line";
 
@@ -21,14 +21,14 @@ function fillDays(data: ChartEntry[]): ChartEntry[] {
   const filled: ChartEntry[] = [];
   for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const key = d.toISOString().split("T")[0];
-    filled.push(map.get(key) ?? { date: key, additions: 0, deletions: 0 });
+    filled.push(map.get(key) ?? { date: key, additions: 0, deletions: 0, newStars: 0, newPrsRaised: 0, newPrsMerged: 0 });
   }
   return filled;
 }
 
 function groupData(data: ChartEntry[], grouping: Grouping): ChartEntry[] {
   if (grouping === "day") return data;
-  const buckets = new Map<string, { additions: number; deletions: number }>();
+  const buckets = new Map<string, { additions: number; deletions: number; newStars: number; newPrsRaised: number; newPrsMerged: number }>();
   for (const d of data) {
     const dt = new Date(d.date);
     let key: string;
@@ -42,9 +42,12 @@ function groupData(data: ChartEntry[], grouping: Grouping): ChartEntry[] {
     } else {
       key = d.date.slice(0, 4);
     }
-    const existing = buckets.get(key) ?? { additions: 0, deletions: 0 };
+    const existing = buckets.get(key) ?? { additions: 0, deletions: 0, newStars: 0, newPrsRaised: 0, newPrsMerged: 0 };
     existing.additions += d.additions;
     existing.deletions += d.deletions;
+    existing.newStars += d.newStars;
+    existing.newPrsRaised += d.newPrsRaised;
+    existing.newPrsMerged += d.newPrsMerged;
     buckets.set(key, existing);
   }
   return Array.from(buckets, ([date, v]) => ({ date, ...v }));
@@ -120,6 +123,9 @@ export default function StatsChart({ data, period }: { data: ChartEntry[]; perio
             <Tooltip {...tooltipProps} />
             <Bar dataKey="additions" fill="#ffffff" radius={[2, 2, 0, 0]} />
             <Bar dataKey="deletions" fill="#555555" radius={[2, 2, 0, 0]} />
+            <Bar dataKey="newStars" fill="#aaaaaa" radius={[2, 2, 0, 0]} name="Stars" />
+            <Bar dataKey="newPrsRaised" fill="#777777" radius={[2, 2, 0, 0]} name="PRs Raised" />
+            <Bar dataKey="newPrsMerged" fill="#333333" radius={[2, 2, 0, 0]} name="PRs Merged" />
           </BarChart>
         ) : (
           <LineChart {...sharedProps}>
@@ -128,6 +134,9 @@ export default function StatsChart({ data, period }: { data: ChartEntry[]; perio
             <Tooltip {...tooltipProps} />
             <Line type="monotone" dataKey="additions" stroke="#ffffff" dot={false} strokeWidth={2} />
             <Line type="monotone" dataKey="deletions" stroke="#555555" dot={false} strokeWidth={2} />
+            <Line type="monotone" dataKey="newStars" stroke="#aaaaaa" dot={false} strokeWidth={2} name="Stars" />
+            <Line type="monotone" dataKey="newPrsRaised" stroke="#777777" dot={false} strokeWidth={2} name="PRs Raised" />
+            <Line type="monotone" dataKey="newPrsMerged" stroke="#333333" dot={false} strokeWidth={2} name="PRs Merged" />
           </LineChart>
         )}
       </ResponsiveContainer>

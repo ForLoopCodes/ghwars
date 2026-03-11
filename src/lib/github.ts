@@ -158,3 +158,73 @@ export async function fetchDailyCommits(
 
   return result;
 }
+
+export async function fetchStarHistory(
+  octokit: Octokit,
+  repos: Array<{ fullName: string }>,
+  onProgress?: (done: number, total: number) => void,
+): Promise<Map<string, number>> {
+  const starsByDate = new Map<string, number>();
+
+  for (let i = 0; i < repos.length; i++) {
+    const [owner, repo] = repos[i].fullName.split("/");
+    let page = 1;
+
+    while (true) {
+      try {
+        const { data } = await octokit.request("GET /repos/{owner}/{repo}/stargazers", {
+          owner, repo, per_page: 100, page,
+          headers: { accept: "application/vnd.github.star+json" },
+        });
+        const items = data as Array<{ starred_at: string }>;
+        for (const s of items) {
+          const date = s.starred_at.split("T")[0];
+          starsByDate.set(date, (starsByDate.get(date) ?? 0) + 1);
+        }
+        if (items.length < 100) break;
+        page++;
+      } catch {
+        break;
+      }
+    }
+
+    onProgress?.(i + 1, repos.length);
+  }
+
+  return starsByDate;
+}
+
+export async function fetchPRHistory(
+  octokit: Octokit,
+  username: string,
+): Promise<{ raised: Map<string, number>; merged: Map<string, number> }> {
+  const raised = new Map<string, number>();
+  const merged = new Map<string, number>();
+
+  async function searchPRs(query: string, target: Map<string, number>, dateField: "created_at" | "closed_at") {
+    let page = 1;
+    while (true) {
+      try {
+        const { data } = await octokit.rest.search.issuesAndPullRequests({ q: query, per_page: 100, page, sort: "created", order: "desc" });
+        for (const pr of data.items) {
+          const raw = dateField === "created_at" ? pr.created_at : pr.closed_at;
+          if (!raw) continue;
+          const date = raw.split("T")[0];
+          target.set(date, (target.get(date) ?? 0) + 1);
+        }
+        if (data.items.length < 100) break;
+        if (page >= 10) break;
+        page++;
+      } catch {
+        break;
+      }
+    }
+  }
+
+  await Promise.all([
+    searchPRs(`type:pr author:${username}`, raised, "created_at"),
+    searchPRs(`type:pr author:${username} is:merged`, merged, "closed_at"),
+  ]);
+
+  return { raised, merged };
+}

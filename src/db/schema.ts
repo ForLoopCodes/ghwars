@@ -58,6 +58,9 @@ export const dailyStats = pgTable("daily_stats", {
   totalStars: integer("total_stars").default(0).notNull(),
   totalPrsRaised: integer("total_prs_raised").default(0).notNull(),
   totalPrsMerged: integer("total_prs_merged").default(0).notNull(),
+  newStars: integer("new_stars").default(0).notNull(),
+  newPrsRaised: integer("new_prs_raised").default(0).notNull(),
+  newPrsMerged: integer("new_prs_merged").default(0).notNull(),
 });
 
 export const repoStats = pgTable("repo_stats", {

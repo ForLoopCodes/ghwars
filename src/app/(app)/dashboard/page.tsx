@@ -84,6 +84,15 @@ export default async function Dashboard({
       commits: sql<number>`coalesce(sum(${dailyStats.commits}), 0)`.as(
         "commits",
       ),
+      newStars: sql<number>`coalesce(sum(${dailyStats.newStars}), 0)`.as(
+        "new_stars",
+      ),
+      newPrsRaised: sql<number>`coalesce(sum(${dailyStats.newPrsRaised}), 0)`.as(
+        "new_prs_raised",
+      ),
+      newPrsMerged: sql<number>`coalesce(sum(${dailyStats.newPrsMerged}), 0)`.as(
+        "new_prs_merged",
+      ),
     })
     .from(dailyStats)
     .where(
@@ -266,6 +275,9 @@ export default async function Dashboard({
               date: s.date,
               additions: s.additions,
               deletions: s.deletions,
+              newStars: s.newStars,
+              newPrsRaised: s.newPrsRaised,
+              newPrsMerged: s.newPrsMerged,
             }))}
           />
         </CardContent>
@@ -285,6 +297,9 @@ export default async function Dashboard({
                 <TableHead className="text-right">Additions</TableHead>
                 <TableHead className="text-right">Deletions</TableHead>
                 <TableHead className="text-right">Commits</TableHead>
+                <TableHead className="text-right">Stars</TableHead>
+                <TableHead className="text-right">PRs Raised</TableHead>
+                <TableHead className="text-right">PRs Merged</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -294,6 +309,9 @@ export default async function Dashboard({
                   <TableCell className="text-right">{Number(s.additions).toLocaleString("en-US")}</TableCell>
                   <TableCell className="text-right">{Number(s.deletions).toLocaleString("en-US")}</TableCell>
                   <TableCell className="text-right">{Number(s.commits).toLocaleString("en-US")}</TableCell>
+                  <TableCell className="text-right">{Number(s.newStars).toLocaleString("en-US")}</TableCell>
+                  <TableCell className="text-right">{Number(s.newPrsRaised).toLocaleString("en-US")}</TableCell>
+                  <TableCell className="text-right">{Number(s.newPrsMerged).toLocaleString("en-US")}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
