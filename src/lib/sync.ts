@@ -61,9 +61,13 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
 
     repoCount = ghRepos.length;
   } else {
-    emit("status", { message: "Using cached repositories..." });
-    const cached = await db.select({ id: repositories.id }).from(repositories).where(eq(repositories.userId, userId));
-    repoCount = cached.length;
+    emit("status", { message: "Refreshing repo star counts..." });
+    const ghRepos = await fetchUserRepos(octokit);
+    for (const r of ghRepos) {
+      await db.update(repositories).set({ stars: r.stargazers_count })
+        .where(eq(repositories.githubRepoId, r.id));
+    }
+    repoCount = ghRepos.length;
   }
 
   if (mode === "full") {
