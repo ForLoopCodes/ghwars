@@ -1,5 +1,5 @@
 // GitHub API helper for fetching commit stats
-// Uses Octokit with search, statistics, and PR APIs
+// Uses Octokit with search, GraphQL, and PR APIs
 
 import { Octokit } from "octokit";
 
@@ -65,6 +65,14 @@ export async function fetchTodaysCommits(
       page++;
     }
 
+    const nodeIds = Array.from(repoCommits.values()).flat().map((_, i, arr) => arr[i]);
+    const allShas: string[] = [];
+    const shaToCommit = new Map<string, { additions: number; deletions: number }>();
+
+    for (const commits of repoCommits.values()) {
+      for (const c of commits) allShas.push(c.sha);
+    }
+
     for (const [repoName, commits] of repoCommits) {
       const [owner, repo] = repoName.split("/");
       for (const commit of commits) {
@@ -82,31 +90,30 @@ export async function fetchTodaysCommits(
   return repoCommits;
 }
 
-export async function fetchRecentDailyCommits(
+export async function fetchYearlyCommits(
   octokit: Octokit,
   username: string,
-  days: number = 7,
-): Promise<Map<string, Map<string, { additions: number; deletions: number; commits: number }>>> {
+): Promise<Array<{ nodeId: string; date: string; repo: string }>> {
   const now = new Date();
-  const startDate = new Date(now);
-  startDate.setDate(startDate.getDate() - days);
+  const yearAgo = new Date(now);
+  yearAgo.setFullYear(yearAgo.getFullYear() - 1);
 
-  const allCommits: Array<{ sha: string; date: string; repo: string }> = [];
+  const commits: Array<{ nodeId: string; date: string; repo: string }> = [];
   const seen = new Set<string>();
   let page = 1;
 
   while (true) {
     try {
       const { data } = await octokit.rest.search.commits({
-        q: `author:${username} author-date:${startDate.toISOString().split("T")[0]}..${now.toISOString().split("T")[0]}`,
+        q: `author:${username} author-date:${yearAgo.toISOString().split("T")[0]}..${now.toISOString().split("T")[0]}`,
         per_page: 100,
         page,
       });
       for (const item of data.items) {
-        if (seen.has(item.sha)) continue;
-        seen.add(item.sha);
-        allCommits.push({
-          sha: item.sha,
+        if (seen.has(item.node_id)) continue;
+        seen.add(item.node_id);
+        commits.push({
+          nodeId: item.node_id,
           date: (item.commit.author?.date ?? "").split("T")[0],
           repo: item.repository.full_name,
         });
@@ -119,98 +126,62 @@ export async function fetchRecentDailyCommits(
     }
   }
 
-  const result = new Map<string, Map<string, { additions: number; deletions: number; commits: number }>>();
-  const batchSize = 20;
+  return commits;
+}
 
-  for (let i = 0; i < allCommits.length; i += batchSize) {
-    const batch = allCommits.slice(i, i + batchSize);
-    const results = await Promise.allSettled(
-      batch.map(async (c) => {
-        const [owner, repo] = c.repo.split("/");
-        const { data: detail } = await octokit.rest.repos.getCommit({ owner, repo, ref: c.sha });
-        return { ...c, additions: detail.stats?.additions ?? 0, deletions: detail.stats?.deletions ?? 0 };
-      }),
-    );
+export async function fetchCommitStatsGQL(
+  octokit: Octokit,
+  nodeIds: string[],
+): Promise<Map<string, { additions: number; deletions: number }>> {
+  const result = new Map<string, { additions: number; deletions: number }>();
+  const batchSize = 50;
 
-    for (const r of results) {
-      if (r.status !== "fulfilled") continue;
-      const { date, repo, additions, deletions } = r.value;
-      if (!result.has(date)) result.set(date, new Map());
-      const dateMap = result.get(date)!;
-      const existing = dateMap.get(repo) ?? { additions: 0, deletions: 0, commits: 0 };
-      existing.additions += additions;
-      existing.deletions += deletions;
-      existing.commits += 1;
-      dateMap.set(repo, existing);
+  for (let i = 0; i < nodeIds.length; i += batchSize) {
+    const batch = nodeIds.slice(i, i + batchSize);
+    const fields = batch.map((id, idx) =>
+      `c${idx}: node(id: "${id}") { ... on Commit { additions deletions } }`
+    ).join("\n");
+
+    try {
+      const data: Record<string, { additions?: number; deletions?: number } | null> = await octokit.graphql(`{ ${fields} }`);
+      for (let j = 0; j < batch.length; j++) {
+        const node = data[`c${j}`];
+        if (node) result.set(batch[j], { additions: node.additions ?? 0, deletions: node.deletions ?? 0 });
+      }
+    } catch {
+      continue;
     }
   }
 
   return result;
 }
 
-export async function fetchRepoWeeklyStats(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  githubUserId: number,
-): Promise<Array<{ weekStart: string; additions: number; deletions: number; commits: number }>> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const { data, status } = await octokit.rest.repos.getContributorsStats({ owner, repo });
-      if (status === 202) {
-        await new Promise((r) => setTimeout(r, 2000));
-        continue;
-      }
-      if (!Array.isArray(data)) return [];
-
-      const contributor = data.find((c) => c.author?.id === githubUserId);
-      if (!contributor) return [];
-
-      return contributor.weeks
-        .filter((w) => (w.a ?? 0) > 0 || (w.d ?? 0) > 0 || (w.c ?? 0) > 0)
-        .map((w) => ({
-          weekStart: new Date((w.w ?? 0) * 1000).toISOString().split("T")[0],
-          additions: w.a ?? 0,
-          deletions: w.d ?? 0,
-          commits: w.c ?? 0,
-        }));
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-
-export async function fetchStarHistory(
+export async function fetchStarHistoryGQL(
   octokit: Octokit,
   repos: Array<{ fullName: string }>,
-  onProgress?: (done: number, total: number) => void,
 ): Promise<Map<string, number>> {
   const starsByDate = new Map<string, number>();
+  const batchSize = 10;
 
-  for (let i = 0; i < repos.length; i++) {
-    const [owner, repo] = repos[i].fullName.split("/");
-    let page = 1;
+  for (let i = 0; i < repos.length; i += batchSize) {
+    const batch = repos.slice(i, i + batchSize);
+    const fields = batch.map((r, idx) => {
+      const [owner, name] = r.fullName.split("/");
+      return `r${idx}: repository(owner: "${owner}", name: "${name}") { stargazers(first: 100, orderBy: {field: STARRED_AT, direction: DESC}) { edges { starredAt } } }`;
+    }).join("\n");
 
-    while (true) {
-      try {
-        const { data } = await octokit.request("GET /repos/{owner}/{repo}/stargazers", {
-          owner, repo, per_page: 100, page,
-          headers: { accept: "application/vnd.github.star+json" },
-        });
-        const items = data as Array<{ starred_at: string }>;
-        for (const s of items) {
-          const date = s.starred_at.split("T")[0];
+    try {
+      const data: Record<string, { stargazers?: { edges?: Array<{ starredAt: string }> } } | null> = await octokit.graphql(`{ ${fields} }`);
+      for (let j = 0; j < batch.length; j++) {
+        const edges = data[`r${j}`]?.stargazers?.edges ?? [];
+        for (const e of edges) {
+          const date = e.starredAt.split("T")[0];
           starsByDate.set(date, (starsByDate.get(date) ?? 0) + 1);
         }
-        if (items.length < 100) break;
-        page++;
-      } catch {
-        break;
       }
+    } catch {
+      continue;
     }
-
-    onProgress?.(i + 1, repos.length);
   }
 
   return starsByDate;

@@ -4,7 +4,7 @@
 import { db } from "@/db";
 import { users, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
 import { eq, and, notInArray, sql, ne } from "drizzle-orm";
-import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchRecentDailyCommits, fetchRepoWeeklyStats, fetchPRCounts, fetchStarHistory, fetchPRHistory } from "./github";
+import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchYearlyCommits, fetchCommitStatsGQL, fetchPRCounts, fetchStarHistoryGQL, fetchPRHistory } from "./github";
 
 type ProgressFn = (event: string, data: Record<string, unknown>) => void;
 type SyncMode = "incremental" | "full";
@@ -113,99 +113,69 @@ async function syncFull(userId: string, username: string, octokit: ReturnType<ty
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const recentCutoff = sevenDaysAgo.toISOString().split("T")[0];
 
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   const dbRepos = await db.select().from(repositories).where(eq(repositories.userId, userId));
   const repoNameToId = new Map(dbRepos.map((r) => [r.fullName, r.id]));
 
   await db.delete(repoStats).where(and(eq(repoStats.userId, userId), ne(repoStats.weekStart, today)));
   await db.delete(dailyStats).where(and(eq(dailyStats.userId, userId), ne(dailyStats.date, today)));
 
-  emit("status", { message: "Fetching recent daily commits + star/PR history..." });
-  const [recentDaily, starHistory, prHistory] = await Promise.all([
-    fetchRecentDailyCommits(octokit, username, 7),
-    fetchStarHistory(octokit, dbRepos, (done, total) => {
-      emit("status", { message: `Star history: ${done}/${total} repos` });
-    }),
+  emit("status", { message: "Fetching yearly commits + stars + PRs..." });
+  const [yearlyCommits, starHistory, prHistory] = await Promise.all([
+    fetchYearlyCommits(octokit, username),
+    fetchStarHistoryGQL(octokit, dbRepos),
     fetchPRHistory(octokit, username),
   ]);
 
-  emit("status", { message: "Fetching weekly stats per repo..." });
-  const weeklyAgg = new Map<string, { additions: number; deletions: number; commits: number }>();
-  let repoDone = 0;
+  emit("status", { message: `Found ${yearlyCommits.length} commits, fetching stats via GraphQL...` });
+  const commitStats = await fetchCommitStatsGQL(octokit, yearlyCommits.map((c) => c.nodeId));
 
-  const concurrency = 50;
-  for (let i = 0; i < dbRepos.length; i += concurrency) {
-    const batch = dbRepos.slice(i, i + concurrency);
-    const results = await Promise.allSettled(
-      batch.map(async (repo) => {
-        const [owner, name] = repo.fullName.split("/");
-        return { repoId: repo.id, fullName: repo.fullName, weeks: await fetchRepoWeeklyStats(octokit, owner, name, user.githubId) };
-      }),
-    );
+  const repoDateAgg = new Map<string, Map<string, { additions: number; deletions: number; commits: number }>>();
+  const dateAgg = new Map<string, { additions: number; deletions: number; commits: number }>();
 
-    for (const r of results) {
-      if (r.status !== "fulfilled") continue;
-      for (const w of r.value.weeks) {
-        if (w.weekStart >= recentCutoff || w.weekStart === today) continue;
+  for (const c of yearlyCommits) {
+    if (c.date === today) continue;
+    const stats = commitStats.get(c.nodeId) ?? { additions: 0, deletions: 0 };
 
-        await db.insert(repoStats).values({
-          userId, repoId: r.value.repoId, weekStart: w.weekStart,
-          additions: w.additions, deletions: w.deletions, commits: w.commits,
-        });
+    const bucketDate = c.date >= recentCutoff
+      ? c.date
+      : (() => { const d = new Date(c.date); d.setDate(d.getDate() - d.getDay()); return d.toISOString().split("T")[0]; })();
 
-        const existing = weeklyAgg.get(w.weekStart) ?? { additions: 0, deletions: 0, commits: 0 };
-        existing.additions += w.additions;
-        existing.deletions += w.deletions;
-        existing.commits += w.commits;
-        weeklyAgg.set(w.weekStart, existing);
-      }
-    }
+    if (!repoDateAgg.has(c.repo)) repoDateAgg.set(c.repo, new Map());
+    const repoMap = repoDateAgg.get(c.repo)!;
+    const rEntry = repoMap.get(bucketDate) ?? { additions: 0, deletions: 0, commits: 0 };
+    rEntry.additions += stats.additions;
+    rEntry.deletions += stats.deletions;
+    rEntry.commits += 1;
+    repoMap.set(bucketDate, rEntry);
 
-    repoDone += batch.length;
-    emit("status", { message: `Weekly stats: ${repoDone}/${dbRepos.length} repos` });
+    const dEntry = dateAgg.get(bucketDate) ?? { additions: 0, deletions: 0, commits: 0 };
+    dEntry.additions += stats.additions;
+    dEntry.deletions += stats.deletions;
+    dEntry.commits += 1;
+    dateAgg.set(bucketDate, dEntry);
   }
 
-  for (const [date, agg] of weeklyAgg) {
-    const newStars = starHistory.get(date) ?? 0;
-    const newPrsRaised = prHistory.raised.get(date) ?? 0;
-    const newPrsMerged = prHistory.merged.get(date) ?? 0;
+  emit("status", { message: "Saving stats to database..." });
 
+  for (const [repoName, dates] of repoDateAgg) {
+    const repoId = repoNameToId.get(repoName);
+    if (!repoId) continue;
+    for (const [date, agg] of dates) {
+      await db.insert(repoStats).values({
+        userId, repoId, weekStart: date,
+        additions: agg.additions, deletions: agg.deletions, commits: agg.commits,
+      });
+    }
+  }
+
+  for (const [date, agg] of dateAgg) {
     await db.insert(dailyStats).values({
       userId, date, additions: agg.additions, deletions: agg.deletions,
       netLines: agg.additions - agg.deletions, commits: agg.commits,
-      newStars, newPrsRaised, newPrsMerged,
+      newStars: starHistory.get(date) ?? 0,
+      newPrsRaised: prHistory.raised.get(date) ?? 0,
+      newPrsMerged: prHistory.merged.get(date) ?? 0,
     });
-  }
-
-  for (const [date, repoMap] of recentDaily) {
-    if (date === today) continue;
-
-    let dayAdd = 0, dayDel = 0, dayCommits = 0;
-    for (const [repoName, stats] of repoMap) {
-      const repoId = repoNameToId.get(repoName);
-      if (!repoId) continue;
-
-      await db.insert(repoStats).values({
-        userId, repoId, weekStart: date,
-        additions: stats.additions, deletions: stats.deletions, commits: stats.commits,
-      });
-
-      dayAdd += stats.additions;
-      dayDel += stats.deletions;
-      dayCommits += stats.commits;
-    }
-
-    const newStars = starHistory.get(date) ?? 0;
-    const newPrsRaised = prHistory.raised.get(date) ?? 0;
-    const newPrsMerged = prHistory.merged.get(date) ?? 0;
-
-    if (dayCommits > 0 || dayAdd > 0 || dayDel > 0 || newStars > 0 || newPrsRaised > 0 || newPrsMerged > 0) {
-      await db.insert(dailyStats).values({
-        userId, date, additions: dayAdd, deletions: dayDel,
-        netLines: dayAdd - dayDel, commits: dayCommits,
-        newStars, newPrsRaised, newPrsMerged,
-      });
-    }
   }
 
   emit("status", { message: "Fetching today's commits..." });
