@@ -1,9 +1,8 @@
 // Root layout with Geist Mono font, dark theme
-// Wraps all pages with toast provider
+// Base wrapper for all pages
 
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
-import { Toaster } from "sonner";
 import "./globals.css";
 
 const geistMono = Geist_Mono({
@@ -26,7 +25,6 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${geistMono.variable} antialiased`}>
         {children}
-        <Toaster theme="dark" position="bottom-right" richColors />
       </body>
     </html>
   );

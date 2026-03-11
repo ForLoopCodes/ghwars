@@ -8,6 +8,7 @@ import { eq, desc, sql, and, gte } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatsChart from "./chart";
 import DashboardFilter from "./filter";
+import SyncPanel from "./sync-panel";
 import Image from "next/image";
 
 function periodToDate(period: string): string | null {
@@ -26,10 +27,12 @@ const periodLabels: Record<string, string> = {
   "1y": "Last Year",
 };
 
-export default async function Dashboard({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
+export default async function Dashboard({ searchParams }: { searchParams: Promise<{ period?: string; sync?: string }> }) {
   const session = await auth();
   const userId = (session!.user as { id: string }).id;
-  const period = (await searchParams).period || "today";
+  const params = await searchParams;
+  const period = params.period || "today";
+  const syncMode = params.sync as "incremental" | "full" | undefined;
   const fromDate = periodToDate(period);
 
   const [profile] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -95,6 +98,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </div>
         </div>
       </div>
+
+      {syncMode && <SyncPanel mode={syncMode} />}
 
       <div className="mt-4 flex items-center justify-between">
         <DashboardFilter current={period} />

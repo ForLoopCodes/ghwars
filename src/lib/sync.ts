@@ -90,20 +90,14 @@ async function syncFull(userId: string, githubId: number, username: string, octo
   await db.delete(dailyStats).where(and(eq(dailyStats.userId, userId), ne(dailyStats.date, today)));
 
   const dailyAgg = new Map<string, { additions: number; deletions: number; commits: number }>();
+  let completed = 0;
 
-  for (let i = 0; i < dbRepos.length; i++) {
-    const repo = dbRepos[i];
+  async function processRepo(repo: typeof dbRepos[0]) {
     const [owner, name] = repo.fullName.split("/");
-    emit("repo", {
-      name: repo.fullName, index: i + 1, total: dbRepos.length, commits: 0,
-      message: `Fetching stats: ${repo.fullName} (${i + 1}/${dbRepos.length})`,
-    });
-
     const weeks = await fetchRepoWeeklyStats(octokit, owner, name, githubId);
 
     for (const w of weeks) {
       if (w.weekStart === today) continue;
-
       await db.insert(repoStats).values({
         userId, repoId: repo.id, weekStart: w.weekStart,
         additions: w.additions, deletions: w.deletions, commits: w.commits,
@@ -116,10 +110,19 @@ async function syncFull(userId: string, githubId: number, username: string, octo
       dailyAgg.set(w.weekStart, existing);
     }
 
+    completed++;
     emit("repo-done", {
-      name: repo.fullName, additions: weeks.reduce((s, w) => s + w.additions, 0),
-      deletions: weeks.reduce((s, w) => s + w.deletions, 0), commits: weeks.reduce((s, w) => s + w.commits, 0),
+      name: repo.fullName, index: completed, total: dbRepos.length,
+      additions: weeks.reduce((s, w) => s + w.additions, 0),
+      deletions: weeks.reduce((s, w) => s + w.deletions, 0),
+      commits: weeks.reduce((s, w) => s + w.commits, 0),
     });
+  }
+
+  const concurrency = 6;
+  for (let i = 0; i < dbRepos.length; i += concurrency) {
+    const batch = dbRepos.slice(i, i + concurrency);
+    await Promise.allSettled(batch.map(processRepo));
   }
 
   for (const [date, agg] of dailyAgg) {
