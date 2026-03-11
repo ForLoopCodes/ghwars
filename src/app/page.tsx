@@ -20,7 +20,6 @@ export default async function Landing() {
           <h1 className={`${logoFont.className} text-5xl tracking-tight`}>
             GHWars
           </h1>
-          <p className="mt-4 text-lg text-muted-foreground">vibemaxxing</p>
           <form
             action={async () => {
               "use server";
