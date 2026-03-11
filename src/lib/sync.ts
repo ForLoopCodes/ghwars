@@ -1,12 +1,16 @@
 // Syncs repos and today's commit stats for user
-// Smart approach: search today's commits, then fetch affected repos
+// Supports progress callback for real-time streaming
 
 import { db } from "@/db";
 import { users, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { createOctokit, fetchUserRepos, fetchTodaysCommits } from "./github";
 
-export async function syncUserData(userId: string) {
+type ProgressFn = (event: string, data: Record<string, unknown>) => void;
+
+export async function syncUserData(userId: string, onProgress?: ProgressFn) {
+  const emit = onProgress ?? (() => {});
+
   const [account] = await db
     .select()
     .from(accounts)
@@ -19,6 +23,8 @@ export async function syncUserData(userId: string) {
   if (!user) return { repos: 0, commits: 0 };
 
   const octokit = createOctokit(account.accessToken);
+
+  emit("status", { message: "Fetching repositories..." });
 
   const ghRepos = await fetchUserRepos(octokit);
   let reposSynced = 0;
@@ -48,12 +54,29 @@ export async function syncUserData(userId: string) {
     reposSynced++;
   }
 
+  emit("repos", { count: reposSynced, message: `Synced ${reposSynced} repositories` });
+  emit("status", { message: "Searching today's commits..." });
+
   const todaysCommits = await fetchTodaysCommits(octokit, user.username);
   const today = new Date().toISOString().split("T")[0];
 
+  if (todaysCommits.size === 0) {
+    emit("status", { message: "No commits found today" });
+  }
+
   let totalAdditions = 0, totalDeletions = 0, totalCommits = 0;
+  let repoIndex = 0;
 
   for (const [repoFullName, commits] of todaysCommits) {
+    repoIndex++;
+    emit("repo", {
+      name: repoFullName,
+      index: repoIndex,
+      total: todaysCommits.size,
+      commits: commits.length,
+      message: `Fetching ${repoFullName} (${repoIndex}/${todaysCommits.size})`,
+    });
+
     const [repo] = await db.select().from(repositories)
       .where(and(eq(repositories.fullName, repoFullName), eq(repositories.userId, userId)))
       .limit(1);
@@ -82,6 +105,13 @@ export async function syncUserData(userId: string) {
     } else {
       await db.insert(repoStats).values({ userId, repoId: repo.id, weekStart: today, ...repoRow });
     }
+
+    emit("repo-done", {
+      name: repoFullName,
+      additions: repoAdd,
+      deletions: repoDel,
+      commits: commits.length,
+    });
   }
 
   const existingStats = await db.select().from(dailyStats)
@@ -97,6 +127,8 @@ export async function syncUserData(userId: string) {
   }
 
   await db.update(users).set({ lastSyncedAt: new Date() }).where(eq(users.id, userId));
+
+  emit("done", { repos: reposSynced, commits: totalCommits, additions: totalAdditions, deletions: totalDeletions });
 
   return { repos: reposSynced, commits: totalCommits };
 }
