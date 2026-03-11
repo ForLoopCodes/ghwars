@@ -22,7 +22,13 @@ export default function RefreshButton() {
   }
 
   return (
-    <Button variant="secondary" size="sm" onClick={handleSync} disabled={loading} className="text-xs">
+    <Button
+      variant="secondary"
+      size="sm"
+      onClick={handleSync}
+      disabled={loading}
+      className="text-xs"
+    >
       {loading ? "Syncing..." : "Refresh Data"}
     </Button>
   );

@@ -26,40 +26,47 @@ export async function fetchUserRepos(octokit: Octokit) {
   return repos;
 }
 
-export async function fetchDailyCommitStats(
+export async function fetchCommitStatsGrouped(
   octokit: Octokit,
   owner: string,
   repo: string,
+  author: string,
   since: string,
-  until: string
-): Promise<{ additions: number; deletions: number; commits: number }> {
+): Promise<Map<string, { additions: number; deletions: number; commits: number }>> {
+  const grouped = new Map<string, { additions: number; deletions: number; commits: number }>();
+
   try {
-    const { data: commits } = await octokit.rest.repos.listCommits({
-      owner,
-      repo,
-      since,
-      until,
-      per_page: 100,
-    });
+    let page = 1;
+    const allCommits: Array<{ sha: string; date: string }> = [];
 
-    let additions = 0, deletions = 0;
+    while (true) {
+      const { data } = await octokit.rest.repos.listCommits({
+        owner, repo, author, since, per_page: 100, page,
+      });
+      if (data.length === 0) break;
+      for (const c of data) {
+        const date = c.commit.author?.date?.split("T")[0];
+        if (date) allCommits.push({ sha: c.sha, date });
+      }
+      if (data.length < 100) break;
+      page++;
+    }
 
-    for (const commit of commits) {
+    for (const { sha, date } of allCommits) {
       try {
-        const { data: detail } = await octokit.rest.repos.getCommit({
-          owner,
-          repo,
-          ref: commit.sha,
-        });
-        additions += detail.stats?.additions ?? 0;
-        deletions += detail.stats?.deletions ?? 0;
+        const { data: detail } = await octokit.rest.repos.getCommit({ owner, repo, ref: sha });
+        const entry = grouped.get(date) ?? { additions: 0, deletions: 0, commits: 0 };
+        entry.additions += detail.stats?.additions ?? 0;
+        entry.deletions += detail.stats?.deletions ?? 0;
+        entry.commits += 1;
+        grouped.set(date, entry);
       } catch {
         continue;
       }
     }
-
-    return { additions, deletions, commits: commits.length };
   } catch {
-    return { additions: 0, deletions: 0, commits: 0 };
+    // repo access error — skip
   }
+
+  return grouped;
 }

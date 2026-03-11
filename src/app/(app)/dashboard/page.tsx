@@ -7,6 +7,7 @@ import { users, dailyStats } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatsChart from "./chart";
+import RefreshButton from "./refresh";
 
 export default async function Dashboard() {
   const session = await auth();
@@ -32,8 +33,13 @@ export default async function Dashboard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold">Dashboard</h1>
-      <p className="mt-1 text-sm text-muted-foreground">@{user.username}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">@{user.username}</p>
+        </div>
+        <RefreshButton />
+      </div>
 
       <div className="mt-6 grid grid-cols-4 gap-4">
         <StatCard

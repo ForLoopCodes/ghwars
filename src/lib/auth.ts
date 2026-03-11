@@ -6,6 +6,7 @@ import GitHub from "next-auth/providers/github";
 import { db } from "@/db";
 import { users, accounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { syncUserData } from "./sync";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -42,6 +43,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           tokenType: account.token_type ?? null,
           scope: account.scope ?? null,
         });
+
+        syncUserData(newUser.id).catch(() => {});
       } else {
         await db.update(users).set({
           avatarUrl: ghProfile.avatar_url,
