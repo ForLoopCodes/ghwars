@@ -44,7 +44,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           scope: account.scope ?? null,
         });
 
-        syncUserData(newUser.id).catch(() => {});
+        syncUserData(newUser.id).catch(() => { });
       } else {
         await db.update(users).set({
           avatarUrl: ghProfile.avatar_url,
