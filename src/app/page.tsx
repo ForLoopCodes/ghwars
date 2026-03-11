@@ -5,9 +5,7 @@ import { signIn, auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { logoFont } from "@/lib/fonts";
-import dynamic from "next/dynamic";
-
-const Dither = dynamic(() => import("@/components/dither"), { ssr: false });
+import DitherBackground from "@/components/dither-bg";
 
 export default async function Landing() {
   try {
@@ -17,16 +15,7 @@ export default async function Landing() {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center px-6">
-      <div className="absolute inset-0 -z-10">
-        <Dither
-          waveSpeed={0.05}
-          waveFrequency={3}
-          waveAmplitude={0.3}
-          waveColor={[0.5, 0.5, 0.5]}
-          colorNum={4}
-          pixelSize={2}
-        />
-      </div>
+      <DitherBackground />
       <div className="max-w-2xl text-center">
         <h1 className={`${logoFont.className} text-5xl tracking-tight`}>GHWars</h1>
         <p className="mt-4 text-lg text-muted-foreground">
