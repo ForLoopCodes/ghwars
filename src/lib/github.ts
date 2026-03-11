@@ -158,25 +158,49 @@ export async function fetchCommitStatsGQL(
 
 export async function fetchStarHistory(
   octokit: Octokit,
-  repos: Array<{ fullName: string }>,
+  repos: Array<{ fullName: string; stars: number }>,
+  since?: string,
 ): Promise<Map<string, number>> {
   const starsByDate = new Map<string, number>();
 
   for (const repo of repos) {
     const [owner, name] = repo.fullName.split("/");
     try {
-      let page = 1;
-      while (true) {
-        const { data } = await octokit.request("GET /repos/{owner}/{repo}/stargazers", {
-          owner, repo: name, per_page: 100, page,
-          headers: { accept: "application/vnd.github.star+json" },
-        });
-        for (const s of data as unknown as Array<{ starred_at: string }>) {
-          const date = s.starred_at.split("T")[0];
-          starsByDate.set(date, (starsByDate.get(date) ?? 0) + 1);
+      if (since && repo.stars > 0) {
+        let page = Math.ceil(repo.stars / 100);
+        while (page > 0) {
+          const { data } = await octokit.request("GET /repos/{owner}/{repo}/stargazers", {
+            owner, repo: name, per_page: 100, page,
+            headers: { accept: "application/vnd.github.star+json" },
+          });
+          const stars = data as unknown as Array<{ starred_at: string }>;
+          let foundOlder = false;
+          for (let i = stars.length - 1; i >= 0; i--) {
+            const date = stars[i].starred_at.split("T")[0];
+            if (date >= since) {
+              starsByDate.set(date, (starsByDate.get(date) ?? 0) + 1);
+            } else {
+              foundOlder = true;
+              break;
+            }
+          }
+          if (foundOlder) break;
+          page--;
         }
-        if ((data as unknown[]).length < 100) break;
-        page++;
+      } else {
+        let page = 1;
+        while (true) {
+          const { data } = await octokit.request("GET /repos/{owner}/{repo}/stargazers", {
+            owner, repo: name, per_page: 100, page,
+            headers: { accept: "application/vnd.github.star+json" },
+          });
+          for (const s of data as unknown as Array<{ starred_at: string }>) {
+            const date = s.starred_at.split("T")[0];
+            starsByDate.set(date, (starsByDate.get(date) ?? 0) + 1);
+          }
+          if ((data as unknown[]).length < 100) break;
+          page++;
+        }
       }
     } catch { continue; }
   }
