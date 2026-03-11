@@ -116,16 +116,16 @@ export default async function Leaderboard({
                 </Link>
               </TableCell>
               <TableCell className="text-right text-sm text-green-400">
-                +{r.totalAdditions.toLocaleString()}
+                +{r.totalAdditions.toLocaleString("en-US")}
               </TableCell>
               <TableCell className="text-right text-sm text-red-400">
-                -{r.totalDeletions.toLocaleString()}
+                -{r.totalDeletions.toLocaleString("en-US")}
               </TableCell>
               <TableCell className="text-right text-sm">
-                {(r.totalAdditions - r.totalDeletions).toLocaleString()}
+                {(r.totalAdditions - r.totalDeletions).toLocaleString("en-US")}
               </TableCell>
               <TableCell className="text-right text-sm text-muted-foreground">
-                {r.totalCommits.toLocaleString()}
+                {r.totalCommits.toLocaleString("en-US")}
               </TableCell>
             </TableRow>
           ))}

@@ -69,15 +69,15 @@ export default function RepoList({ repos }: { repos: Repo[] }) {
             </div>
             <div className="flex gap-6 text-right">
               <div>
-                <p className="text-sm font-bold text-green-400">+{repo.totalAdditions.toLocaleString()}</p>
+                <p className="text-sm font-bold text-green-400">+{repo.totalAdditions.toLocaleString("en-US")}</p>
                 <p className="text-xs text-muted-foreground">added</p>
               </div>
               <div>
-                <p className="text-sm font-bold text-red-400">-{repo.totalDeletions.toLocaleString()}</p>
+                <p className="text-sm font-bold text-red-400">-{repo.totalDeletions.toLocaleString("en-US")}</p>
                 <p className="text-xs text-muted-foreground">deleted</p>
               </div>
               <div>
-                <p className="text-sm font-bold">{repo.totalCommits.toLocaleString()}</p>
+                <p className="text-sm font-bold">{repo.totalCommits.toLocaleString("en-US")}</p>
                 <p className="text-xs text-muted-foreground">commits</p>
               </div>
             </div>

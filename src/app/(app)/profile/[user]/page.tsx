@@ -70,13 +70,13 @@ export default async function Profile({
       <div className="grid grid-cols-4 gap-4">
         <Stat
           label="Additions (30d)"
-          value={totals.additions.toLocaleString()}
+          value={totals.additions.toLocaleString("en-US")}
         />
         <Stat
           label="Deletions (30d)"
-          value={totals.deletions.toLocaleString()}
+          value={totals.deletions.toLocaleString("en-US")}
         />
-        <Stat label="Commits (30d)" value={totals.commits.toLocaleString()} />
+        <Stat label="Commits (30d)" value={totals.commits.toLocaleString("en-US")} />
         <Stat
           label="Tracked Repos"
           value={String(repos.filter((r) => r.isTracked).length)}

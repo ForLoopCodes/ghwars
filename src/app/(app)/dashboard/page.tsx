@@ -108,9 +108,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       </div>
 
       <div className="mt-4 grid grid-cols-4 gap-4">
-        <StatCard title="Additions" value={Number(periodStats[0].additions).toLocaleString()} sub={periodLabels[period] || period} />
-        <StatCard title="Deletions" value={Number(periodStats[0].deletions).toLocaleString()} sub={periodLabels[period] || period} />
-        <StatCard title="Commits" value={Number(periodStats[0].commits).toLocaleString()} sub={periodLabels[period] || period} />
+        <StatCard title="Additions" value={Number(periodStats[0].additions).toLocaleString("en-US")} sub={periodLabels[period] || period} />
+        <StatCard title="Deletions" value={Number(periodStats[0].deletions).toLocaleString("en-US")} sub={periodLabels[period] || period} />
+        <StatCard title="Commits" value={Number(periodStats[0].commits).toLocaleString("en-US")} sub={periodLabels[period] || period} />
         <StatCard title="Streak" value={`${streak}d`} sub="Consecutive days" />
       </div>
 
