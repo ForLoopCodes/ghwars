@@ -1,5 +1,5 @@
 // GitHub API helper for fetching commit stats
-// Uses Octokit with user access tokens
+// Uses Octokit with search and statistics APIs
 
 import { Octokit } from "octokit";
 
@@ -45,11 +45,7 @@ export async function fetchTodaysCommits(
       for (const item of data.items) {
         const repoName = item.repository.full_name;
         const commits = repoCommits.get(repoName) ?? [];
-        commits.push({
-          sha: item.sha,
-          additions: 0,
-          deletions: 0,
-        });
+        commits.push({ sha: item.sha, additions: 0, deletions: 0 });
         repoCommits.set(repoName, commits);
       }
 
@@ -69,9 +65,40 @@ export async function fetchTodaysCommits(
         }
       }
     }
-  } catch {
-    // search API error
-  }
+  } catch {}
 
   return repoCommits;
+}
+
+export async function fetchRepoWeeklyStats(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  githubUserId: number,
+): Promise<Array<{ weekStart: string; additions: number; deletions: number; commits: number }>> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { data, status } = await octokit.rest.repos.getContributorsStats({ owner, repo });
+      if (status === 202) {
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      if (!Array.isArray(data)) return [];
+
+      const contributor = data.find((c) => c.author?.id === githubUserId);
+      if (!contributor) return [];
+
+      return contributor.weeks
+        .filter((w) => (w.a ?? 0) > 0 || (w.d ?? 0) > 0 || (w.c ?? 0) > 0)
+        .map((w) => ({
+          weekStart: new Date((w.w ?? 0) * 1000).toISOString().split("T")[0],
+          additions: w.a ?? 0,
+          deletions: w.d ?? 0,
+          commits: w.c ?? 0,
+        }));
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }

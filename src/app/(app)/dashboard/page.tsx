@@ -7,7 +7,6 @@ import { dailyStats, repositories, repoStats, users } from "@/db/schema";
 import { eq, desc, sql, and, gte } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatsChart from "./chart";
-import RefreshButton from "./refresh";
 import DashboardFilter from "./filter";
 import Image from "next/image";
 
@@ -95,7 +94,6 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
             {profile.bio && <p className="mt-0.5 max-w-md text-xs text-muted-foreground">{profile.bio}</p>}
           </div>
         </div>
-        <RefreshButton />
       </div>
 
       <div className="mt-4 flex items-center justify-between">

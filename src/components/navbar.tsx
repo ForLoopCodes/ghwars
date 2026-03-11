@@ -1,10 +1,9 @@
 // Shared navigation bar for authenticated pages
-// Shows logo, nav links, and user avatar
+// Shows logo, nav links, and user dropdown menu
 
 import Link from "next/link";
-import { auth, signOut } from "@/lib/auth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { auth } from "@/lib/auth";
+import UserMenu from "./user-menu";
 
 export default async function Navbar() {
   const session = await auth();
@@ -31,31 +30,11 @@ export default async function Navbar() {
           </Link>
         </div>
       </div>
-      <div className="flex items-center gap-3">
-        <Link href={`/profile/${user.username}`}>
-          <Avatar className="h-7 w-7">
-            <AvatarImage src={user.image ?? undefined} />
-            <AvatarFallback className="text-xs">
-              {user.name?.[0] ?? "?"}
-            </AvatarFallback>
-          </Avatar>
-        </Link>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/" });
-          }}
-        >
-          <Button
-            variant="ghost"
-            size="sm"
-            type="submit"
-            className="text-xs text-muted-foreground"
-          >
-            Sign out
-          </Button>
-        </form>
-      </div>
+      <UserMenu
+        name={user.name ?? user.username ?? "?"}
+        image={user.image ?? undefined}
+        username={user.username ?? ""}
+      />
     </nav>
   );
 }

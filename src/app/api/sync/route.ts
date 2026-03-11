@@ -1,16 +1,17 @@
 // SSE streaming sync endpoint for live progress
-// Streams repo-by-repo progress via Server-Sent Events
+// Supports ?mode=full|incremental query param
 
 import { auth } from "@/lib/auth";
 import { syncUserData } from "@/lib/sync";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return new Response("unauthorized", { status: 401 });
     }
 
+    const mode = new URL(request.url).searchParams.get("mode") === "full" ? "full" : "incremental";
     const userId = session.user.id;
     const encoder = new TextEncoder();
 
@@ -21,7 +22,7 @@ export async function GET() {
         };
 
         try {
-          await syncUserData(userId, send);
+          await syncUserData(userId, mode, send);
         } catch (err) {
           send("error", { message: err instanceof Error ? err.message : "sync failed" });
         } finally {
