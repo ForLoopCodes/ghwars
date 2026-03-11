@@ -156,42 +156,29 @@ export async function fetchCommitStatsGQL(
   return result;
 }
 
-export async function fetchStarHistoryGQL(
+export async function fetchStarHistory(
   octokit: Octokit,
   repos: Array<{ fullName: string }>,
 ): Promise<Map<string, number>> {
   const starsByDate = new Map<string, number>();
-  const batchSize = 10;
 
-  for (let i = 0; i < repos.length; i += batchSize) {
-    const batch = repos.slice(i, i + batchSize);
-    const fields = batch.map((r, idx) => {
-      const [owner, name] = r.fullName.split("/");
-      return `r${idx}: repository(owner: "${owner}", name: "${name}") { stargazers(first: 100, orderBy: {field: STARRED_AT, direction: DESC}) { edges { starredAt } } }`;
-    }).join("\n");
-
+  for (const repo of repos) {
+    const [owner, name] = repo.fullName.split("/");
     try {
-      const data: Record<string, { stargazers?: { edges?: Array<{ starredAt: string }> } } | null> = await octokit.graphql(`{ ${fields} }`);
-      for (let j = 0; j < batch.length; j++) {
-        const edges = data[`r${j}`]?.stargazers?.edges ?? [];
-        for (const e of edges) {
-          const date = e.starredAt.split("T")[0];
+      let page = 1;
+      while (true) {
+        const { data } = await octokit.request("GET /repos/{owner}/{repo}/stargazers", {
+          owner, repo: name, per_page: 100, page,
+          headers: { accept: "application/vnd.github.star+json" },
+        });
+        for (const s of data as unknown as Array<{ starred_at: string }>) {
+          const date = s.starred_at.split("T")[0];
           starsByDate.set(date, (starsByDate.get(date) ?? 0) + 1);
         }
+        if ((data as unknown[]).length < 100) break;
+        page++;
       }
-    } catch (err) {
-      for (const r of batch) {
-        const [owner, name] = r.fullName.split("/");
-        try {
-          const data: { repository?: { stargazers?: { edges?: Array<{ starredAt: string }> } } } =
-            await octokit.graphql(`{ repository(owner: "${owner}", name: "${name}") { stargazers(first: 100, orderBy: {field: STARRED_AT, direction: DESC}) { edges { starredAt } } } }`);
-          for (const e of data.repository?.stargazers?.edges ?? []) {
-            const date = e.starredAt.split("T")[0];
-            starsByDate.set(date, (starsByDate.get(date) ?? 0) + 1);
-          }
-        } catch { continue; }
-      }
-    }
+    } catch { continue; }
   }
 
   return starsByDate;

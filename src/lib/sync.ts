@@ -4,7 +4,7 @@
 import { db } from "@/db";
 import { users, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
 import { eq, and, notInArray, sql, ne, desc } from "drizzle-orm";
-import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchYearlyCommits, fetchCommitStatsGQL, fetchPRCounts, fetchStarHistoryGQL, fetchPRHistory } from "./github";
+import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchYearlyCommits, fetchCommitStatsGQL, fetchPRCounts, fetchStarHistory, fetchPRHistory } from "./github";
 
 type ProgressFn = (event: string, data: Record<string, unknown>) => void;
 type SyncMode = "incremental" | "full";
@@ -145,7 +145,7 @@ async function syncFull(userId: string, username: string, octokit: ReturnType<ty
   emit("status", { message: "Fetching yearly commits + stars + PRs..." });
   const [yearlyCommits, starHistory, prHistory] = await Promise.all([
     fetchYearlyCommits(octokit, username),
-    fetchStarHistoryGQL(octokit, dbRepos),
+    fetchStarHistory(octokit, dbRepos),
     fetchPRHistory(octokit, username),
   ]);
 
