@@ -4,7 +4,7 @@
 import { db } from "@/db";
 import { users, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
 import { eq, and, notInArray, sql, ne } from "drizzle-orm";
-import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchRepoWeeklyStats, fetchPRCounts } from "./github";
+import { createOctokit, fetchUserRepos, fetchTodaysCommits, fetchDailyCommits, fetchPRCounts } from "./github";
 
 type ProgressFn = (event: string, data: Record<string, unknown>) => void;
 type SyncMode = "incremental" | "full";
@@ -67,7 +67,7 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
   }
 
   if (mode === "full") {
-    await syncFull(userId, user.githubId, user.username, octokit, emit);
+    await syncFull(userId, user.username, octokit, emit);
   } else {
     await syncIncremental(userId, user.username, octokit, emit);
   }
@@ -107,56 +107,51 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
   return { repos: repoCount, commits: Number(totals[0]?.commits ?? 0) };
 }
 
-async function syncFull(userId: string, githubId: number, username: string, octokit: ReturnType<typeof createOctokit>, emit: ProgressFn) {
-  emit("status", { message: "Fetching yearly stats..." });
+async function syncFull(userId: string, username: string, octokit: ReturnType<typeof createOctokit>, emit: ProgressFn) {
+  emit("status", { message: "Fetching daily stats..." });
 
   const today = new Date().toISOString().split("T")[0];
   const dbRepos = await db.select().from(repositories).where(eq(repositories.userId, userId));
+  const repoNameToId = new Map(dbRepos.map((r) => [r.fullName, r.id]));
 
   await db.delete(repoStats).where(and(eq(repoStats.userId, userId), ne(repoStats.weekStart, today)));
   await db.delete(dailyStats).where(and(eq(dailyStats.userId, userId), ne(dailyStats.date, today)));
 
-  const dailyAgg = new Map<string, { additions: number; deletions: number; commits: number }>();
+  const dailyData = await fetchDailyCommits(octokit, username, (fetched, total) => {
+    emit("status", { message: `Fetching commit stats: ${fetched}/${total}` });
+  });
+
   let completed = 0;
+  const totalDates = dailyData.size;
 
-  async function processRepo(repo: typeof dbRepos[0]) {
-    const [owner, name] = repo.fullName.split("/");
-    const weeks = await fetchRepoWeeklyStats(octokit, owner, name, githubId);
+  for (const [date, repoMap] of dailyData) {
+    if (date === today) { completed++; continue; }
 
-    for (const w of weeks) {
-      if (w.weekStart === today) continue;
+    let dayAdd = 0, dayDel = 0, dayCommits = 0;
+
+    for (const [repoName, stats] of repoMap) {
+      const repoId = repoNameToId.get(repoName);
+      if (!repoId) continue;
+
       await db.insert(repoStats).values({
-        userId, repoId: repo.id, weekStart: w.weekStart,
-        additions: w.additions, deletions: w.deletions, commits: w.commits,
+        userId, repoId, weekStart: date,
+        additions: stats.additions, deletions: stats.deletions, commits: stats.commits,
       });
 
-      const existing = dailyAgg.get(w.weekStart) ?? { additions: 0, deletions: 0, commits: 0 };
-      existing.additions += w.additions;
-      existing.deletions += w.deletions;
-      existing.commits += w.commits;
-      dailyAgg.set(w.weekStart, existing);
+      dayAdd += stats.additions;
+      dayDel += stats.deletions;
+      dayCommits += stats.commits;
+    }
+
+    if (dayCommits > 0 || dayAdd > 0 || dayDel > 0) {
+      await db.insert(dailyStats).values({
+        userId, date, additions: dayAdd, deletions: dayDel,
+        netLines: dayAdd - dayDel, commits: dayCommits,
+      });
     }
 
     completed++;
-    emit("repo-done", {
-      name: repo.fullName, index: completed, total: dbRepos.length,
-      additions: weeks.reduce((s, w) => s + w.additions, 0),
-      deletions: weeks.reduce((s, w) => s + w.deletions, 0),
-      commits: weeks.reduce((s, w) => s + w.commits, 0),
-    });
-  }
-
-  const concurrency = 100;
-  for (let i = 0; i < dbRepos.length; i += concurrency) {
-    const batch = dbRepos.slice(i, i + concurrency);
-    await Promise.allSettled(batch.map(processRepo));
-  }
-
-  for (const [date, agg] of dailyAgg) {
-    await db.insert(dailyStats).values({
-      userId, date, additions: agg.additions, deletions: agg.deletions,
-      netLines: agg.additions - agg.deletions, commits: agg.commits,
-    });
+    emit("repo-done", { name: date, index: completed, total: totalDates, additions: dayAdd, deletions: dayDel, commits: dayCommits });
   }
 
   emit("status", { message: "Fetching today's commits..." });

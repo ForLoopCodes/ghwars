@@ -11,6 +11,14 @@ import DashboardFilter from "./filter";
 import SyncPanel from "./sync-panel";
 import RepoList from "./repo-list";
 import Image from "next/image";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 function periodToDate(period: string): string | null {
   const d = new Date();
@@ -72,6 +80,9 @@ export default async function Dashboard({
       ),
       deletions: sql<number>`coalesce(sum(${dailyStats.deletions}), 0)`.as(
         "deletions",
+      ),
+      commits: sql<number>`coalesce(sum(${dailyStats.commits}), 0)`.as(
+        "commits",
       ),
     })
     .from(dailyStats)
@@ -257,6 +268,36 @@ export default async function Dashboard({
               deletions: s.deletions,
             }))}
           />
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">
+            Daily Breakdown ({periodLabels[period] || period})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Additions</TableHead>
+                <TableHead className="text-right">Deletions</TableHead>
+                <TableHead className="text-right">Commits</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {chartStats.map((s) => (
+                <TableRow key={s.date}>
+                  <TableCell>{s.date}</TableCell>
+                  <TableCell className="text-right">{Number(s.additions).toLocaleString("en-US")}</TableCell>
+                  <TableCell className="text-right">{Number(s.deletions).toLocaleString("en-US")}</TableCell>
+                  <TableCell className="text-right">{Number(s.commits).toLocaleString("en-US")}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
