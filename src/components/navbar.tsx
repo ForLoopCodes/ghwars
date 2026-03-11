@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import UserMenu from "./user-menu";
+import { logoFont } from "@/lib/fonts";
 
 export default async function Navbar() {
   const session = await auth();
@@ -28,7 +29,7 @@ export default async function Navbar() {
   return (
     <nav className="flex items-center justify-between border-b border-border px-6 py-3">
       <div className="flex items-center gap-6">
-        <Link href="/dashboard" className="text-lg font-bold tracking-tight">
+        <Link href="/dashboard" className={`${logoFont.className} text-xl tracking-tight`}>
           GHWars
         </Link>
         <div className="flex gap-4 text-sm text-muted-foreground">
