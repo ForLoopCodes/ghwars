@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GHWars
 
-## Getting Started
+Competitive GitHub coding platform. Developers sign in via GitHub, sync their daily coding stats, and climb a live leaderboard ranked by code output.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** — App Router, TypeScript, Turbopack
+- **PostgreSQL** — Drizzle ORM
+- **NextAuth v5** — GitHub OAuth
+- **Octokit** — GitHub REST + GraphQL API
+- **Recharts** — Activity charts
+- **Tailwind CSS 4 + shadcn/ui** — Dark theme, Geist Mono font
+
+## Features
+
+- **Dashboard** — Personal stats (additions, deletions, commits, stars, PRs) with period filters (today, 7d, 30d, 1y, lifetime), activity chart, daily/weekly breakdown table, per-repo list
+- **Leaderboard** — Top 100 developers ranked by net lines, with period-scoped deltas
+- **Profiles** — Public user pages with coding history
+- **Sync** — Incremental (today) and full (yearly) modes using GitHub Search + GraphQL batching (~25 API calls per full sync)
+- **Admin** — User management, ban system, audit logs
+- **Cron** — Automated repo and stats sync
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/ForLoopCodes/ghwars.git
+cd ghwars
+bun install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create `.env`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
+AUTH_SECRET=<openssl rand -base64 32>
+AUTH_GITHUB_ID=<github oauth client id>
+AUTH_GITHUB_SECRET=<github oauth client secret>
+NEXTAUTH_URL=http://localhost:6767
+CRON_SECRET=<random secret>
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Push schema and run:
 
-## Learn More
+```bash
+bun run db:push
+bun run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open [localhost:6767](http://localhost:6767).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Command | Description |
+|---------|-------------|
+| `bun run dev` | Dev server (port 6767) |
+| `bun run build` | Production build |
+| `bun run start` | Production server |
+| `bun run db:push` | Push schema to DB |
+| `bun run db:studio` | Drizzle Studio GUI |
 
-## Deploy on Vercel
+## Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── app/
+│   ├── (app)/           # Authenticated pages
+│   │   ├── admin/       # Admin panel
+│   │   ├── dashboard/   # Stats, chart, sync
+│   │   ├── leaderboard/ # Top 100
+│   │   └── profile/     # User profiles
+│   ├── api/             # Auth, sync, cron, leaderboard
+│   └── page.tsx         # Landing page
+├── components/          # Navbar, user menu, shadcn/ui
+├── db/                  # Schema, Drizzle instance
+└── lib/                 # Auth, GitHub API, sync logic
+```
