@@ -20,40 +20,50 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
   if (!user) return { repos: 0, commits: 0 };
 
   const octokit = createOctokit(account.accessToken);
-  emit("status", { message: "Fetching repositories..." });
 
-  const ghRepos = await fetchUserRepos(octokit);
+  let repoCount: number;
 
-  const existingRepos = await db.select({ id: repositories.id, githubRepoId: repositories.githubRepoId })
-    .from(repositories).where(eq(repositories.userId, userId));
-  const existingMap = new Map(existingRepos.map((r) => [r.githubRepoId, r.id]));
+  if (mode === "full") {
+    emit("status", { message: "Fetching repositories..." });
+    const ghRepos = await fetchUserRepos(octokit);
 
-  const toInsert = ghRepos.filter((r) => !existingMap.has(r.id));
-  const toUpdate = ghRepos.filter((r) => existingMap.has(r.id));
+    const existingRepos = await db.select({ id: repositories.id, githubRepoId: repositories.githubRepoId })
+      .from(repositories).where(eq(repositories.userId, userId));
+    const existingMap = new Map(existingRepos.map((r) => [r.githubRepoId, r.id]));
 
-  if (toInsert.length > 0) {
-    await db.insert(repositories).values(
-      toInsert.map((r) => ({ userId, githubRepoId: r.id, name: r.name, fullName: r.full_name, language: r.language, stars: r.stargazers_count }))
-    );
-  }
+    const toInsert = ghRepos.filter((r) => !existingMap.has(r.id));
+    const toUpdate = ghRepos.filter((r) => existingMap.has(r.id));
 
-  for (const r of toUpdate) {
-    await db.update(repositories).set({ name: r.name, fullName: r.full_name, language: r.language, stars: r.stargazers_count })
-      .where(eq(repositories.githubRepoId, r.id));
-  }
-
-  emit("repos", { count: ghRepos.length, message: `Synced ${ghRepos.length} repositories` });
-
-  const ghRepoIds = ghRepos.map((r) => r.id);
-  if (ghRepoIds.length > 0) {
-    const stale = await db.select({ id: repositories.id }).from(repositories)
-      .where(and(eq(repositories.userId, userId), notInArray(repositories.githubRepoId, ghRepoIds)));
-    if (stale.length > 0) {
-      const staleIds = stale.map((r) => r.id);
-      await db.delete(repoStats).where(sql`${repoStats.repoId} IN (${sql.join(staleIds.map(id => sql`${id}`), sql`, `)})`);
-      await db.delete(repositories).where(sql`${repositories.id} IN (${sql.join(staleIds.map(id => sql`${id}`), sql`, `)})`);
-      emit("status", { message: `Removed ${stale.length} deleted repos` });
+    if (toInsert.length > 0) {
+      await db.insert(repositories).values(
+        toInsert.map((r) => ({ userId, githubRepoId: r.id, name: r.name, fullName: r.full_name, language: r.language, stars: r.stargazers_count }))
+      );
     }
+
+    for (const r of toUpdate) {
+      await db.update(repositories).set({ name: r.name, fullName: r.full_name, language: r.language, stars: r.stargazers_count })
+        .where(eq(repositories.githubRepoId, r.id));
+    }
+
+    emit("repos", { count: ghRepos.length, message: `Synced ${ghRepos.length} repositories` });
+
+    const ghRepoIds = ghRepos.map((r) => r.id);
+    if (ghRepoIds.length > 0) {
+      const stale = await db.select({ id: repositories.id }).from(repositories)
+        .where(and(eq(repositories.userId, userId), notInArray(repositories.githubRepoId, ghRepoIds)));
+      if (stale.length > 0) {
+        const staleIds = stale.map((r) => r.id);
+        await db.delete(repoStats).where(sql`${repoStats.repoId} IN (${sql.join(staleIds.map(id => sql`${id}`), sql`, `)})`);
+        await db.delete(repositories).where(sql`${repositories.id} IN (${sql.join(staleIds.map(id => sql`${id}`), sql`, `)})`);
+        emit("status", { message: `Removed ${stale.length} deleted repos` });
+      }
+    }
+
+    repoCount = ghRepos.length;
+  } else {
+    emit("status", { message: "Using cached repositories..." });
+    const cached = await db.select({ id: repositories.id }).from(repositories).where(eq(repositories.userId, userId));
+    repoCount = cached.length;
   }
 
   if (mode === "full") {
@@ -78,13 +88,13 @@ export async function syncUserData(userId: string, mode: SyncMode = "incremental
   }).from(dailyStats).where(eq(dailyStats.userId, userId));
 
   emit("done", {
-    repos: ghRepos.length,
+    repos: repoCount,
     commits: Number(totals[0]?.commits ?? 0),
     additions: Number(totals[0]?.additions ?? 0),
     deletions: Number(totals[0]?.deletions ?? 0),
   });
 
-  return { repos: ghRepos.length, commits: Number(totals[0]?.commits ?? 0) };
+  return { repos: repoCount, commits: Number(totals[0]?.commits ?? 0) };
 }
 
 async function syncFull(userId: string, githubId: number, username: string, octokit: ReturnType<typeof createOctokit>, emit: ProgressFn) {
