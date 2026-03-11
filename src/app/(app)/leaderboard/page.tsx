@@ -19,13 +19,18 @@ import PeriodFilter from "./filter";
 
 type Period = "today" | "week" | "month" | "alltime";
 
-function dateThreshold(period: Period): Date {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  if (period === "today") return now;
-  if (period === "week") return new Date(now.setDate(now.getDate() - 7));
-  if (period === "month") return new Date(now.setDate(now.getDate() - 30));
-  return new Date("2020-01-01");
+function dateThreshold(period: Period): string {
+  const d = new Date();
+  if (period === "today") return d.toISOString().split("T")[0];
+  if (period === "week") {
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split("T")[0];
+  }
+  if (period === "month") {
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split("T")[0];
+  }
+  return "2020-01-01";
 }
 
 export default async function Leaderboard({
@@ -39,9 +44,7 @@ export default async function Leaderboard({
       ? params.period
       : "today"
   ) as Period;
-  const threshold = dateThreshold(period);
-
-  const dateStr = threshold.toISOString().split("T")[0];
+  const dateStr = dateThreshold(period);
 
   const rankings = await db
     .select({
