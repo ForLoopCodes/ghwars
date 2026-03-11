@@ -180,6 +180,12 @@ async function syncFull(userId: string, username: string, octokit: ReturnType<ty
 
   emit("status", { message: "Fetching today's commits..." });
   await syncIncremental(userId, username, octokit, emit);
+
+  await db.update(dailyStats).set({
+    newStars: starHistory.get(today) ?? 0,
+    newPrsRaised: prHistory.raised.get(today) ?? 0,
+    newPrsMerged: prHistory.merged.get(today) ?? 0,
+  }).where(and(eq(dailyStats.userId, userId), eq(dailyStats.date, today)));
 }
 
 async function syncIncremental(userId: string, username: string, octokit: ReturnType<typeof createOctokit>, emit: ProgressFn) {
