@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatsChart from "./chart";
 import DashboardFilter from "./filter";
 import SyncPanel from "./sync-panel";
+import RepoList from "./repo-list";
 import Image from "next/image";
 
 function periodToDate(period: string): string | null {
@@ -137,38 +138,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {repoLogs.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              No repo data yet - click Refresh Data
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {repoLogs.map((repo) => (
-                <div key={repo.repoName} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
-                  <div>
-                    <p className="text-sm font-medium">{repo.repoName}</p>
-                    {repo.language && (
-                      <p className="text-xs text-muted-foreground">{repo.language}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-6 text-right">
-                    <div>
-                      <p className="text-sm font-bold text-green-400">+{Number(repo.totalAdditions).toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">added</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-red-400">-{Number(repo.totalDeletions).toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">deleted</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold">{Number(repo.totalCommits).toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">commits</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <RepoList repos={repoLogs.map((r) => ({
+            repoName: r.repoName,
+            language: r.language,
+            totalAdditions: Number(r.totalAdditions),
+            totalDeletions: Number(r.totalDeletions),
+            totalCommits: Number(r.totalCommits),
+          }))} />
         </CardContent>
       </Card>
     </div>
