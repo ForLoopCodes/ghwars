@@ -56,8 +56,9 @@ function formatLabel(date: string, grouping: Grouping): string {
   return date.slice(5);
 }
 
-export default function StatsChart({ data }: { data: ChartEntry[] }) {
-  const [grouping, setGrouping] = useState<Grouping>("day");
+export default function StatsChart({ data, period }: { data: ChartEntry[]; period?: string }) {
+  const defaultGrouping: Grouping = period === "today" ? "day" : period === "7d" ? "week" : period === "30d" ? "week" : period === "1y" ? "month" : "month";
+  const [grouping, setGrouping] = useState<Grouping>(defaultGrouping);
   const [chartType, setChartType] = useState<ChartType>("bar");
 
   const processed = useMemo(() => groupData(fillDays(data), grouping), [data, grouping]);
