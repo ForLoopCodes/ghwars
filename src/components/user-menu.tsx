@@ -45,7 +45,7 @@ export default function UserMenu({
           Refresh Data
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => router.push("/dashboard?sync=full")}>
-          Full Refresh (1 Year)
+          Full Refresh (Lifetime)
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => { window.location.href = "/api/auth/signout"; }}>

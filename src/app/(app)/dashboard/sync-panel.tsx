@@ -36,6 +36,11 @@ export default function SyncPanel({ mode }: { mode: "incremental" | "full" }) {
   async function runSync() {
     try {
       const response = await fetch(`/api/sync?mode=${mode}`);
+      if (response.status === 429) {
+        const data = await response.json();
+        setState((s) => ({ ...s, active: false, phase: data.error || "Rate limit reached" }));
+        return;
+      }
       if (!response.ok || !response.body) {
         setState((s) => ({ ...s, active: false, phase: "Sync failed" }));
         return;

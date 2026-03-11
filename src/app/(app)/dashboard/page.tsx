@@ -25,6 +25,7 @@ const periodLabels: Record<string, string> = {
   "7d": "Last 7 Days",
   "30d": "Last 30 Days",
   "1y": "Last Year",
+  lifetime: "Lifetime",
 };
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ period?: string; sync?: string }> }) {

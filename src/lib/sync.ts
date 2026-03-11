@@ -119,7 +119,7 @@ async function syncFull(userId: string, githubId: number, username: string, octo
     });
   }
 
-  const concurrency = 6;
+  const concurrency = 100;
   for (let i = 0; i < dbRepos.length; i += concurrency) {
     const batch = dbRepos.slice(i, i + concurrency);
     await Promise.allSettled(batch.map(processRepo));

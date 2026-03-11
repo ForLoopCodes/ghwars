@@ -11,6 +11,7 @@ const periods = [
   { key: "7d", label: "7 Days" },
   { key: "30d", label: "30 Days" },
   { key: "1y", label: "1 Year" },
+  { key: "lifetime", label: "Lifetime" },
 ] as const;
 
 export default function DashboardFilter({ current }: { current: string }) {

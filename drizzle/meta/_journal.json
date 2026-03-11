@@ -15,6 +15,13 @@
       "when": 1773208380024,
       "tag": "0001_clammy_devos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773211338158,
+      "tag": "0002_mute_morbius",
+      "breakpoints": true
     }
   ]
 }

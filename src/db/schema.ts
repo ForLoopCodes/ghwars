@@ -11,8 +11,12 @@ export const users = pgTable("users", {
   avatarUrl: varchar("avatar_url", { length: 500 }),
   bio: text("bio"),
   email: varchar("email", { length: 320 }),
+  isAdmin: boolean("is_admin").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastSyncedAt: timestamp("last_synced_at"),
+  syncCountDate: date("sync_count_date"),
+  incrementalSyncs: integer("incremental_syncs").default(0).notNull(),
+  fullSyncs: integer("full_syncs").default(0).notNull(),
 });
 
 export const accounts = pgTable("accounts", {
