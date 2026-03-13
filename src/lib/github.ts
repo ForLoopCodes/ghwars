@@ -65,14 +65,6 @@ export async function fetchTodaysCommits(
       page++;
     }
 
-    const nodeIds = Array.from(repoCommits.values()).flat().map((_, i, arr) => arr[i]);
-    const allShas: string[] = [];
-    const shaToCommit = new Map<string, { additions: number; deletions: number }>();
-
-    for (const commits of repoCommits.values()) {
-      for (const c of commits) allShas.push(c.sha);
-    }
-
     for (const [repoName, commits] of repoCommits) {
       const [owner, repo] = repoName.split("/");
       for (const commit of commits) {

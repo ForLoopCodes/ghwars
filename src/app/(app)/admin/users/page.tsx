@@ -3,7 +3,7 @@
 
 import { db } from "@/db";
 import { users, dailyStats, repositories } from "@/db/schema";
-import { eq, desc, sql, ilike } from "drizzle-orm";
+import { desc, sql, ilike } from "drizzle-orm";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

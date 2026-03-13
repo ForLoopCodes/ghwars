@@ -3,7 +3,7 @@
 
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -32,20 +32,8 @@ export default function SyncPanel({ mode }: { mode: "incremental" | "full" }) {
   });
   const logRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    runSync(ctrl.signal);
-    return () => ctrl.abort();
-  }, []);
-
-  useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [state.logs]);
-
-  async function runSync(signal: AbortSignal) {
+  const runSync = useCallback(async (signal: AbortSignal) => {
     try {
       const response = await fetch(`/api/sync?mode=${mode}`, { signal });
       if (response.status === 429) {
@@ -130,12 +118,28 @@ export default function SyncPanel({ mode }: { mode: "incremental" | "full" }) {
           if (event === "done") router.refresh();
         }
       }
-    } catch (e) {
-      if (!(e instanceof DOMException && e.name === "AbortError")) {
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
         setState((s) => ({ ...s, active: false, phase: "Sync failed" }));
       }
     }
-  }
+  }, [mode, router]);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const timeout = window.setTimeout(() => {
+      void runSync(ctrl.signal);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+      ctrl.abort();
+    };
+  }, [runSync]);
+
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [state.logs]);
 
   const pct =
     state.repoTotal > 0

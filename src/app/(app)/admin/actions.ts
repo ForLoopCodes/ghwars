@@ -5,8 +5,8 @@
 
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { users, adminLogs, accounts, repositories, dailyStats, repoStats } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { users, adminLogs } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 async function requireAdmin() {
