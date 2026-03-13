@@ -1,12 +1,25 @@
 // Dithered wave background using Three.js shaders
 // Perlin noise FBM with integrated Bayer dithering
 
-/* eslint-disable react/no-unknown-property */
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree, ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
+
+type WaveUniforms = {
+  time: THREE.Uniform<number>;
+  resolution: THREE.Uniform<THREE.Vector2>;
+  waveSpeed: THREE.Uniform<number>;
+  waveFrequency: THREE.Uniform<number>;
+  waveAmplitude: THREE.Uniform<number>;
+  waveColor: THREE.Uniform<THREE.Color>;
+  mousePos: THREE.Uniform<THREE.Vector2>;
+  enableMouseInteraction: THREE.Uniform<number>;
+  mouseRadius: THREE.Uniform<number>;
+  colorNum: THREE.Uniform<number>;
+  pixelSize: THREE.Uniform<number>;
+};
 
 const vertexShader = `
 precision highp float;
@@ -109,47 +122,54 @@ function DitheredWaves({
   mouseRadius,
 }: Required<DitherProps>) {
   const mesh = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
   const mouseRef = useRef(new THREE.Vector2());
   const { viewport, size, gl } = useThree();
 
-  const uniforms = useRef({
+  const initialUniforms = useMemo<WaveUniforms>(() => ({
     time: new THREE.Uniform(0),
     resolution: new THREE.Uniform(new THREE.Vector2()),
-    waveSpeed: new THREE.Uniform(waveSpeed),
-    waveFrequency: new THREE.Uniform(waveFrequency),
-    waveAmplitude: new THREE.Uniform(waveAmplitude),
-    waveColor: new THREE.Uniform(new THREE.Color(...waveColor)),
+    waveSpeed: new THREE.Uniform(0),
+    waveFrequency: new THREE.Uniform(0),
+    waveAmplitude: new THREE.Uniform(0),
+    waveColor: new THREE.Uniform(new THREE.Color()),
     mousePos: new THREE.Uniform(new THREE.Vector2()),
-    enableMouseInteraction: new THREE.Uniform(enableMouseInteraction ? 1 : 0),
-    mouseRadius: new THREE.Uniform(mouseRadius),
-    colorNum: new THREE.Uniform(colorNum),
-    pixelSize: new THREE.Uniform(pixelSize),
-  });
+    enableMouseInteraction: new THREE.Uniform(0),
+    mouseRadius: new THREE.Uniform(0),
+    colorNum: new THREE.Uniform(0),
+    pixelSize: new THREE.Uniform(0),
+  }), []);
 
   useEffect(() => {
+    const material = materialRef.current;
+    if (!material) return;
     const dpr = gl.getPixelRatio();
-    uniforms.current.resolution.value.set(
+    const uniforms = material.uniforms as WaveUniforms;
+    uniforms.resolution.value.set(
       Math.floor(size.width * dpr),
       Math.floor(size.height * dpr),
     );
-  }, [size, gl]);
+  }, [gl, size]);
 
   const prevColor = useRef([...waveColor]);
   useFrame(({ clock }) => {
-    const u = uniforms.current;
-    if (!disableAnimation) u.time.value = clock.getElapsedTime();
-    u.waveSpeed.value = waveSpeed;
-    u.waveFrequency.value = waveFrequency;
-    u.waveAmplitude.value = waveAmplitude;
-    u.enableMouseInteraction.value = enableMouseInteraction ? 1 : 0;
-    u.mouseRadius.value = mouseRadius;
-    u.colorNum.value = colorNum;
-    u.pixelSize.value = pixelSize;
+    const material = materialRef.current;
+    if (!material) return;
+
+    const uniforms = material.uniforms as WaveUniforms;
+    if (!disableAnimation) uniforms.time.value = clock.getElapsedTime();
+    uniforms.waveSpeed.value = waveSpeed;
+    uniforms.waveFrequency.value = waveFrequency;
+    uniforms.waveAmplitude.value = waveAmplitude;
+    uniforms.enableMouseInteraction.value = enableMouseInteraction ? 1 : 0;
+    uniforms.mouseRadius.value = mouseRadius;
+    uniforms.colorNum.value = colorNum;
+    uniforms.pixelSize.value = pixelSize;
     if (!prevColor.current.every((v, i) => v === waveColor[i])) {
-      u.waveColor.value.set(...waveColor);
+      uniforms.waveColor.value.set(...waveColor);
       prevColor.current = [...waveColor];
     }
-    if (enableMouseInteraction) u.mousePos.value.copy(mouseRef.current);
+    if (enableMouseInteraction) uniforms.mousePos.value.copy(mouseRef.current);
   });
 
   const handlePointerMove = (e: ThreeEvent<PointerEvent>) => {
@@ -167,9 +187,10 @@ function DitheredWaves({
       <mesh ref={mesh} scale={[viewport.width, viewport.height, 1]}>
         <planeGeometry args={[1, 1]} />
         <shaderMaterial
+          ref={materialRef}
           vertexShader={vertexShader}
           fragmentShader={fragmentShader}
-          uniforms={uniforms.current}
+          uniforms={initialUniforms}
         />
       </mesh>
       <mesh

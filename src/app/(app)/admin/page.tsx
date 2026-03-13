@@ -6,7 +6,6 @@ import {
   users,
   repositories,
   dailyStats,
-  repoStats,
   adminLogs,
 } from "@/db/schema";
 import { sql, eq, desc, gte } from "drizzle-orm";

@@ -1,7 +1,7 @@
 // Drizzle ORM schema for GHWars database
 // Tables: users, accounts, repositories, dailyStats, repoStats, adminLogs
 
-import { pgTable, uuid, bigint, varchar, text, boolean, timestamp, date, integer, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, uuid, bigint, varchar, text, boolean, timestamp, date, integer } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
